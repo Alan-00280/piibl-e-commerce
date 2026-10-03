@@ -1,6 +1,8 @@
-# E-Commerce REST API
+# PiiBL E-Commerce REST API
 
 REST API untuk sistem E-Commerce multi-store yang memungkinkan Customer membeli produk dari berbagai Store, sementara Tenant dapat mengelola Store, produk, variant, dan stok.
+
+Nama PiiBL diambil dari PBL yang dimana jika dalam bahasa inggris di *prounounce* menjadi *\pibiel\\*
 
 > Project ini dibuat sebagai tugas kuliah.
 
