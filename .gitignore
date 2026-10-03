@@ -1,0 +1,75 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+vendor/
+
+# Logs
+*.log
+logs/
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build / Distribution
+dist/
+build/
+out/
+/bin/
+/build/
+/dist/
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Temporary files
+tmp/
+temp/
+.cache/
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# Local configuration
+config/local.*
+
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go coverage
+coverage.out
+coverage.html
+*.coverprofile
+
+# Go workspace
+go.work
+go.work.sum
+
+
+# OS generated files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Air live reload
+.air.toml
+
+# Local database
+*.db
+*.sqlite
+*.sqlite3
