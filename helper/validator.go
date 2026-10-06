@@ -43,6 +43,16 @@ func NewValidator(passwordCommonSet *PasswordCommonSet) *AppValidator {
 		return true
 	})
 
+	_ = v.RegisterValidation("alphanumspace", func(fl validator.FieldLevel) bool {
+		for _, r := range fl.Field().String() {
+			if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != ' ' {
+				return false
+			}
+		}
+
+		return true
+	})
+
 	_ = v.RegisterValidation("strongpassword", func(fl validator.FieldLevel) bool {
 		return checkPasswordStrength(fl.Field().String(), *passwordCommonSet) == ""
 	})
