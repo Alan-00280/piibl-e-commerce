@@ -140,3 +140,104 @@ func createChoosenVariantText(choosenVariants []model.ProductVariant, choosenSpa
 
 	return strings.Join(parts, "|")
 }
+
+// Memeriksa kuantitas sebelum melakukan
+// Atomic update di tabel product
+func canBePurchased(product model.Product, qty int) bool {
+	currentStock := product.Stock
+
+	if product.Status == model.ProductStatInactive {
+		return false
+	}
+
+	if qty <= 0 {
+		return false
+	}
+
+	return qty <= currentStock
+}
+
+// Mengembalikan nilai stok yang baru
+// Dipakai untuk membantu pengatasan kondisi Race Condition
+func decreasedStock(product *model.Product, qty int) (model.Product, error) {
+	currentStock := product.Stock
+
+	newStock := currentStock - qty
+
+	if newStock < 0 {
+		return model.Product{}, fmt.Errorf("Terjadi kesalahan. Nilai stok baru dibawah 0")
+	}
+
+	product.Stock = newStock
+	return *product, nil
+}
+
+// Menghitung harga subtotal per item serta total
+func countTotalSubtotal(orderItems []*model.OrderItem, order *model.Order) ([]model.OrderItem, model.Order) {
+	var appliedOrderItems []model.OrderItem
+
+	var total int64
+
+	var subtotal int64
+	for _, orderItem := range orderItems {
+		price := orderItem.PriceAtPurchase
+		quantity := orderItem.Quantity
+
+		subtotal = price * int64(quantity)
+		orderItem.Subtotal = subtotal
+
+		appliedOrderItems = append(appliedOrderItems, *orderItem)
+		total += subtotal
+	}
+
+	order.Total = total
+	return appliedOrderItems, *order
+}
+
+// Memeriksa Pengubahan Status Order
+func checkChangeOrderStatus(older model.OrderStat, newer model.OrderStat) string {
+	switch {
+	case older == model.OrderStatusCreated && newer == model.OrderStatusCancelled:
+		return ""
+	case older == model.OrderStatusCreated && newer == model.OrderStatusCompleted:
+		return ""
+	default:
+		return fmt.Sprintf("status %s tidak dapat diubah ke %s", older, newer)
+	}
+}
+
+// Memeriksa apakah order bisa direview
+// Input berupa:
+//   1. order item yang akan direview
+//   2. catatan order dari database
+//   3. daftar catatan item order dari database
+func canReviews(orderItem model.OrderItem, orderRecord model.Order, orderItemRecords []model.OrderItem) string {
+	if orderRecord.Status != model.OrderStatusCompleted {
+		return fmt.Sprintf("pesanan masih berstatus %v", orderRecord.Status)
+	}
+
+	var orderExists bool
+	orderExists = false
+
+	orderProductIDs := make(map[int]struct{})
+	for _, orderItemRecord := range orderItemRecords {
+		if orderItemRecord.OrderID != orderRecord.ID {
+			return "catatan order item tidak sesuai"
+		}
+
+		if orderItemRecord.ID == orderItem.ID {
+			orderExists = true
+		}
+
+		orderProductIDs[orderItemRecord.ProductID] = struct{}{}
+	}
+	if !orderExists {
+		return "order item tidak ada di catatan order"
+	}
+
+	if _, exists := orderProductIDs[orderItem.ProductID]; !exists {
+		return "produk tidak tercatat di pesanan"
+	}
+
+	return ""
+}
