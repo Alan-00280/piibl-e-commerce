@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/Alan-00280/piibl-e-commerce.git/app/model"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -43,14 +44,9 @@ func NewValidator(passwordCommonSet *PasswordCommonSet) *AppValidator {
 		return true
 	})
 
-	_ = v.RegisterValidation("alphanumspace", func(fl validator.FieldLevel) bool {
-		for _, r := range fl.Field().String() {
-			if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != ' ' {
-				return false
-			}
-		}
-
-		return true
+	// role --> pengecekan role harus berupa enum CUSTOMER | TENANT
+	_ = v.RegisterValidation("role", func(fl validator.FieldLevel) bool {
+		return fl.Field().String() == string(model.RoleCustomer) || fl.Field().String() == string(model.RoleTenant)
 	})
 
 	_ = v.RegisterValidation("strongpassword", func(fl validator.FieldLevel) bool {
@@ -99,6 +95,8 @@ func messageFor(fe validator.FieldError, appValidator AppValidator) string {
 		return "panjang harus tepat " + fe.Param()
 	case "numeric":
 		return "karakter harus berupa angka"
+	case "role":
+		return "role tidak valid antara CUSTOMER | TENANT"
 	default:
 		return "tidak memenuhi aturan " + fe.Tag()
 	}

@@ -52,6 +52,22 @@ func RequestLogger(logger *slog.Logger) fiber.Handler {
 	}
 }
 
+var bodiedMethod = map[string]bool{
+	fiber.MethodPost:  true,
+	fiber.MethodPut:   true,
+	fiber.MethodPatch: true,
+}
+
+func RequireJSON(c *fiber.Ctx) error {
+	if bodiedMethod[c.Method()] {
+		ct := c.Get("Content-Type")
+		if !strings.HasPrefix(ct, fiber.MIMEApplicationJSON) {
+			return helper.UnsuportedMediaType("Content-Type harus application/json")
+		}
+	}
+	return c.Next()
+}
+
 func Register(app *fiber.App, logger *slog.Logger, allowedOrigin string) {
 	app.Use(requestid.New())
 	app.Use(recover.New())

@@ -16,6 +16,7 @@ type CreateUserReq struct {
 	Username string `json:"username" validate:"required,min=3,max=30,alphanum"`
 	Email    string `json:"email" validate:"required,email,max=120"`
 	Password string `json:"password" validate:"required,min=8,max=72,strongpassword"`
+	Role     Role   `json:"role" validate:"required,role"`
 }
 
 type ReplaceUserRequest struct {
@@ -31,7 +32,7 @@ type PatchUserRequest struct {
 }
 
 type AssignRoleRequest struct {
-	Role Role `json:"role" validate:"required,min=1"`
+	Role Role `json:"role" validate:"required,role"`
 }
 
 type UserFilter struct {

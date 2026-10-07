@@ -6,13 +6,19 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
+	"github.com/Alan-00280/piibl-e-commerce.git/app/repository"
+	"github.com/Alan-00280/piibl-e-commerce.git/app/service"
 	"github.com/Alan-00280/piibl-e-commerce.git/config"
 	"github.com/Alan-00280/piibl-e-commerce.git/database"
+	"github.com/Alan-00280/piibl-e-commerce.git/helper"
 	"github.com/Alan-00280/piibl-e-commerce.git/routes"
 )
+
+var minJwtSecretLength = 32
 
 func main() {
 	// LOAD ENV
@@ -20,6 +26,13 @@ func main() {
 
 	// LOGGER CONFIG
 	logger := config.NewLogger()
+
+	// JWT SECRET
+	jwtSecret := config.GetEnv("JWT_SECRET", "")
+	if len(jwtSecret) < minJwtSecretLength {
+		logger.Error("jwt secret isn't valid please check again", slog.Int("min length:", minJwtSecretLength))
+		os.Exit(1)
+	}
 
 	// DB POOL
 	pool, err := database.NewPool(context.Background())
@@ -30,9 +43,46 @@ func main() {
 	}
 	defer pool.Close()
 
+	// JWT MANAGER
+	jwtManager := helper.NewJWTManager(
+		jwtSecret,
+		config.GetEnv("JWT_ISSUER", "be-prak"),
+		time.Duration(config.GetEnvInt("JWT_ACCESS_TTL_MINUTES", 15))*time.Minute,
+	)
+
+	// COMMON PASSWORD
+	passwordCommonPath, err := filepath.Abs("./files/common_password.txt")
+	if err != nil {
+		logger.Error("gagal memuat password umum", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	passwordCommonSet, err := helper.NewPasswordCommonSet(passwordCommonPath)
+	if err != nil {
+		logger.Error("gagal memuat password umum", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	// APP VALIDATOR
+	appValidator := helper.NewValidator(passwordCommonSet)
+
+	// REPO & SERVICES
+	userRepo := repository.NewUserRepository(pool)
+
+	authRepo := repository.NewAuthRepo(pool)
+	authService := service.NewAuthService(
+		userRepo,
+		authRepo,
+		jwtManager,
+		time.Duration(config.GetEnvInt("JWT_REFRESH_TTL_DAYS", 7))*24*time.Hour,
+		appValidator,
+	)
+
 	// APP
 	deps := routes.Dependencies{
-		Pool: pool,
+		Pool:        pool,
+		JWT:         jwtManager,
+		AuthService: authService,
 	}
 
 	app := config.NewApp(logger, deps)

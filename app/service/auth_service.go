@@ -69,7 +69,7 @@ func (s *AuthService) Register(c *fiber.Ctx) error {
 		Username: req.Username,
 		Email:    req.Email,
 		Password: hash_password,
-		Role:     "user",
+		Role:     req.Role,
 		IsActive: true,
 	})
 	if err != nil {
