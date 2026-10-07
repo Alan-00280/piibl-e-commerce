@@ -2,6 +2,9 @@ package helper
 
 import (
 	"bufio"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 
@@ -64,4 +67,19 @@ func VerifyPassword(hash, plain string) bool {
 
 func VerifyDummyPassword(password string) {
 	_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(password))
+}
+
+func RandomToken(numBytes int) (string, error) {
+	buf := make([]byte, numBytes)
+
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(buf), nil
+}
+
+func SHA256Hex(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
 }

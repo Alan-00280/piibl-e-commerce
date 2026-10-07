@@ -36,5 +36,5 @@ type RefreshToken struct {
 type AuthUser struct {
 	UserID   int    `json:"user_id"`
 	Username string `json:"username"`
-	Role     string `json:"role"`
+	Role     Role   `json:"role"`
 }

@@ -55,7 +55,7 @@ type CheckoutReq struct {
 
 type CheckoutItem struct {
 	ProductID  int   `json:"product_id" validate:"required,min=1"`
-	VariantIDs []int `json:"variant_ids" validate:"required"` //variant_ids BELUM dibatasi jumlahnya dengan tiap elemen minimal 1
+	VariantIDs []int `json:"variant_ids" validate:"required,min=1,max=500,dive,min=1"` //variant_ids BELUM dibatasi jumlahnya dengan tiap elemen minimal 1
 	Quantity   int   `json:"quantity" validate:"required,number,min=1,max=100000"`
 }
 

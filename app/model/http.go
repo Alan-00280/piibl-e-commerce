@@ -23,3 +23,17 @@ type ErrorRespone struct {
 	Fields    map[string]string `json:"fields,omitempty"`
 	RequestID string            `json:"request_id,omitempty"`
 }
+
+type ListQuery struct {
+	Page     int
+	Limit    int
+	Search   string
+	Sort     string
+	Order    string
+	IsActive *bool
+	*UserFilter
+}
+
+func (q ListQuery) Offset() int {
+	return (q.Page - 1) * q.Limit
+}
