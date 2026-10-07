@@ -17,6 +17,7 @@ type UserRepository interface {
 	Create(ctx context.Context, u model.User) (model.User, error)
 	Update(ctx context.Context, u model.User) (model.User, error)
 	Delete(ctx context.Context, id int) error
+	UpdateRole(ctx context.Context, id int, role model.Role) (model.User, error)
 }
 
 type userPostgresRepository struct {
@@ -185,6 +186,22 @@ func scanUser(rows pgx.Rows) (model.User, error) {
 
 	if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.Role, &u.IsActive, &u.CreatedAt); err != nil {
 		return model.User{}, err
+	}
+
+	return u, nil
+}
+
+func (r *userPostgresRepository) UpdateRole(
+	ctx context.Context, id int, role model.Role,
+) (model.User, error) {
+	var u model.User
+
+	if err := r.pool.QueryRow(ctx, `UPDATE users SET role = $1 WHERE id = $2 RETURNING id, username, email, role, is_active, created_at `, role, id).Scan(&u.ID, &u.Username, &u.Email, &u.Role, &u.IsActive, &u.CreatedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return model.User{}, ErrNotFound
+		}
+
+		return model.User{}, fmt.Errorf("[ERROR] can't update role user: %w", err)
 	}
 
 	return u, nil

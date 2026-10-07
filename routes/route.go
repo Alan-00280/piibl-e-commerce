@@ -15,6 +15,7 @@ type Dependencies struct {
 	Pool        *pgxpool.Pool
 	AuthService *service.AuthService
 	JWT         *helper.JWTManager
+	Permission  *helper.PermissionSet
 }
 
 func Register(app *fiber.App, deps Dependencies) {

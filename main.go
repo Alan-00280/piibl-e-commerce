@@ -50,6 +50,17 @@ func main() {
 		time.Duration(config.GetEnvInt("JWT_ACCESS_TTL_MINUTES", 15))*time.Minute,
 	)
 
+	// LOAD ROLE PERMISSIONS
+	roleRepo := repository.NewRoleRepository(pool)
+	rawRolePerm, err := roleRepo.LoadPermissions(context.Background())
+	if err != nil {
+		logger.Error("gagal memuat role dan permissions", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	permissionSet := helper.NewPermissionSet(rawRolePerm)
+	logger.Info("berhasil memuat roles", slog.Any("roles", permissionSet.KnownRoles()))
+
 	// COMMON PASSWORD
 	passwordCommonPath, err := filepath.Abs("./files/common_password.txt")
 	if err != nil {
@@ -76,6 +87,7 @@ func main() {
 		jwtManager,
 		time.Duration(config.GetEnvInt("JWT_REFRESH_TTL_DAYS", 7))*24*time.Hour,
 		appValidator,
+		permissionSet,
 	)
 
 	// APP

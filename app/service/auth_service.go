@@ -14,11 +14,12 @@ import (
 )
 
 type AuthService struct {
-	users        repository.UserRepository
-	tokens       repository.TokenRepository
-	jwt          *helper.JWTManager
-	refreshTTL   time.Duration
-	appValidator *helper.AppValidator
+	users         repository.UserRepository
+	tokens        repository.TokenRepository
+	jwt           *helper.JWTManager
+	refreshTTL    time.Duration
+	appValidator  *helper.AppValidator
+	permissionSet *helper.PermissionSet
 }
 
 func NewAuthService(
@@ -27,13 +28,15 @@ func NewAuthService(
 	jwt *helper.JWTManager,
 	refreshTTL time.Duration,
 	appValidator *helper.AppValidator,
+	permissionSet *helper.PermissionSet,
 ) *AuthService {
 	return &AuthService{
-		users:        users,
-		tokens:       tokens,
-		jwt:          jwt,
-		refreshTTL:   refreshTTL,
-		appValidator: appValidator,
+		users:         users,
+		tokens:        tokens,
+		jwt:           jwt,
+		refreshTTL:    refreshTTL,
+		appValidator:  appValidator,
+		permissionSet: permissionSet,
 	}
 }
 
@@ -202,7 +205,8 @@ func (s *AuthService) Me(c *fiber.Ctx) error {
 	}
 
 	return helper.Ok(c, "user berhasil ditemukan", fiber.Map{
-		"user": user,
+		"user":        user,
+		"permissions": s.permissionSet.PermissionsOf(user.Role),
 	})
 }
 

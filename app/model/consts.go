@@ -8,7 +8,7 @@ package model
 type Role string
 
 const (
-	RoleAdmin    Role = "ADMINISTRATOR"
+	RoleAdmin    Role = "ADMIN"
 	RoleCustomer Role = "CUSTOMER"
 	RoleTenant   Role = "TENANT"
 	RoleGuest    Role = "GUEST"
