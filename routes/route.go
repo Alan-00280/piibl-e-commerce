@@ -1,0 +1,62 @@
+package routes
+
+import (
+	"context"
+	"time"
+
+	"github.com/Alan-00280/piibl-e-commerce.git/app/service"
+	"github.com/Alan-00280/piibl-e-commerce.git/helper"
+	"github.com/Alan-00280/piibl-e-commerce.git/middleware"
+	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+type Dependencies struct {
+	Pool        *pgxpool.Pool
+	AuthService *service.AuthService
+	UserService *service.UserService
+	JWT         *helper.JWTManager
+	Permission  *helper.PermissionSet
+}
+
+func Register(app *fiber.App, deps Dependencies) {
+	api := app.Group("/api/v1")
+	permissions := deps.Permission
+
+	// HEALTH CHECK (WITH DB POOL CONNECTION)
+	api.Get("/health", healthCheck(deps.Pool))
+
+	// AUTHENTICATION
+	auth := api.Group("/auth", middleware.RequireJSON)
+	auth.Post("/register", deps.AuthService.Register)
+	auth.Post("/login", middleware.LoginRateLimiter(), deps.AuthService.Login)
+	auth.Post("/refresh", deps.AuthService.Refresh)
+	auth.Post("/logout", deps.AuthService.Logout)
+	auth.Get("/me", middleware.RequireAuth(deps.JWT), deps.AuthService.Me)
+
+	// PROTECTED
+	user := api.Group("/users", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
+	user.Get("/", middleware.RequirePermission(permissions, "user:list"), deps.UserService.ListAll)
+	user.Post("/", middleware.RequirePermission(permissions, "user:update:any"), deps.UserService.Create)
+	user.Delete("/:id", middleware.RequirePermission(permissions, "user:delete"), deps.UserService.Delete)
+	user.Patch("/:id/role", middleware.RequirePermission(permissions, "role:assign"), deps.UserService.AssignRole)
+
+	user.Put("/:id", deps.UserService.Replace)
+	user.Get("/:id", deps.UserService.Get)
+	user.Patch("/:id", deps.UserService.Patch)
+
+}
+
+func healthCheck(pool *pgxpool.Pool) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		ctx, cancel := context.WithTimeout(c.UserContext(), 2*time.Second)
+		defer cancel()
+
+		if err := pool.Ping(ctx); err != nil {
+			// ERR 503 - Service Unavailable
+			return helper.ServiceUnavailable("database can't be reached")
+		}
+
+		return helper.Ok(c, "server and database is OK!", nil)
+	}
+}
