@@ -79,6 +79,7 @@ func main() {
 
 	// REPO & SERVICES
 	userRepo := repository.NewUserRepository(pool)
+	userService := service.NewUserService(userRepo, permissionSet, appValidator)
 
 	authRepo := repository.NewAuthRepo(pool)
 	authService := service.NewAuthService(
@@ -94,7 +95,9 @@ func main() {
 	deps := routes.Dependencies{
 		Pool:        pool,
 		JWT:         jwtManager,
+		Permission:  permissionSet,
 		AuthService: authService,
+		UserService: userService,
 	}
 
 	app := config.NewApp(logger, deps)

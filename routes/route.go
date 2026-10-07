@@ -14,12 +14,14 @@ import (
 type Dependencies struct {
 	Pool        *pgxpool.Pool
 	AuthService *service.AuthService
+	UserService *service.UserService
 	JWT         *helper.JWTManager
 	Permission  *helper.PermissionSet
 }
 
 func Register(app *fiber.App, deps Dependencies) {
 	api := app.Group("/api/v1")
+	permissions := deps.Permission
 
 	// HEALTH CHECK (WITH DB POOL CONNECTION)
 	api.Get("/health", healthCheck(deps.Pool))
@@ -31,6 +33,17 @@ func Register(app *fiber.App, deps Dependencies) {
 	auth.Post("/refresh", deps.AuthService.Refresh)
 	auth.Post("/logout", deps.AuthService.Logout)
 	auth.Get("/me", middleware.RequireAuth(deps.JWT), deps.AuthService.Me)
+
+	// PROTECTED
+	user := api.Group("/users", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
+	user.Get("/", middleware.RequirePermission(permissions, "user:list"), deps.UserService.ListAll)
+	user.Post("/", middleware.RequirePermission(permissions, "user:update:any"), deps.UserService.Create)
+	user.Delete("/:id", middleware.RequirePermission(permissions, "user:delete"), deps.UserService.Delete)
+	user.Patch("/:id/role", middleware.RequirePermission(permissions, "role:assign"), deps.UserService.AssignRole)
+
+	user.Put("/:id", deps.UserService.Replace)
+	user.Get("/:id", deps.UserService.Get)
+	user.Patch("/:id", deps.UserService.Patch)
 
 }
 

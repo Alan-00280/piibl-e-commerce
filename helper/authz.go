@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/Alan-00280/piibl-e-commerce.git/app/model"
@@ -48,6 +49,7 @@ func NewPermissionSet(raw map[string][]string) *PermissionSet {
 // Jika role punya permission --> true dan sebaliknya
 func (p *PermissionSet) Can(role model.Role, permission string) bool {
 	if p == nil {
+		fmt.Println("HELP!")
 		return false
 	}
 

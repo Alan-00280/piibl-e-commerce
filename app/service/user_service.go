@@ -10,17 +10,17 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-type UserHandler struct {
+type UserService struct {
 	repo         repository.UserRepository
 	perms        *helper.PermissionSet
 	appValidator *helper.AppValidator
 }
 
-func NewUserHandler(repo repository.UserRepository, perms *helper.PermissionSet, appValidator *helper.AppValidator) *UserHandler {
-	return &UserHandler{repo: repo, perms: perms, appValidator: appValidator}
+func NewUserService(repo repository.UserRepository, perms *helper.PermissionSet, appValidator *helper.AppValidator) *UserService {
+	return &UserService{repo: repo, perms: perms, appValidator: appValidator}
 }
 
-func (h *UserHandler) ListAll(c *fiber.Ctx) error {
+func (h *UserService) ListAll(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqContext(c)
 	defer cancel()
 
@@ -69,7 +69,7 @@ func (h *UserHandler) ListAll(c *fiber.Ctx) error {
 	// return helper.SuccessCursor(c, "daftar user berhasil diambil", rows, meta)
 }
 
-func (h *UserHandler) Get(c *fiber.Ctx) error {
+func (h *UserService) Get(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqContext(c)
 	defer cancel()
 
@@ -95,7 +95,7 @@ func (h *UserHandler) Get(c *fiber.Ctx) error {
 	return helper.Ok(c, "berhasil mendapatkan user", user)
 }
 
-func (h *UserHandler) Create(c *fiber.Ctx) error {
+func (h *UserService) Create(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqContext(c)
 	defer cancel()
 
@@ -132,7 +132,7 @@ func (h *UserHandler) Create(c *fiber.Ctx) error {
 	return helper.Created(c, "user successfully created!", new, "/api/v1/users/"+strconv.Itoa(new.ID))
 }
 
-func (h *UserHandler) Replace(c *fiber.Ctx) error {
+func (h *UserService) Replace(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqContext(c)
 	defer cancel()
 
@@ -176,7 +176,7 @@ func (h *UserHandler) Replace(c *fiber.Ctx) error {
 	return helper.Ok(c, "berhasil memperbarui data pengguna secara penuh", updated)
 }
 
-func (h *UserHandler) Patch(c *fiber.Ctx) error {
+func (h *UserService) Patch(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqContext(c)
 	defer cancel()
 
@@ -221,7 +221,7 @@ func (h *UserHandler) Patch(c *fiber.Ctx) error {
 	return helper.Ok(c, "berhasil memperbarui user", updated_user)
 }
 
-func (h *UserHandler) Delete(c *fiber.Ctx) error {
+func (h *UserService) Delete(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqContext(c)
 	defer cancel()
 
@@ -246,7 +246,7 @@ func (h *UserHandler) Delete(c *fiber.Ctx) error {
 	return helper.NoContent(c)
 }
 
-func (h *UserHandler) AssignRole(c *fiber.Ctx) error {
+func (h *UserService) AssignRole(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqContext(c)
 	defer cancel()
 
