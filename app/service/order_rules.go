@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/Alan-00280/piibl-e-commerce.git/app/model"
@@ -159,22 +160,73 @@ func canBePurchased(product model.Product, qty int) bool {
 
 // Mengembalikan nilai stok yang baru
 // Dipakai untuk membantu pengatasan kondisi Race Condition
-func decreasedStock(product *model.Product, qty int) (model.Product, error) {
-	currentStock := product.Stock
+func decreasedStock(product *model.Product, qty int) (*model.Product, error) {
+	if qty < 1 {
+		return &model.Product{}, fmt.Errorf("kuantitas tidak boleh di bawah 1")
+	}
 
+	currentStock := product.Stock
 	newStock := currentStock - qty
 
 	if newStock < 0 {
-		return model.Product{}, fmt.Errorf("Terjadi kesalahan. Nilai stok baru dibawah 0")
+		return &model.Product{}, fmt.Errorf("Terjadi kesalahan. Nilai stok baru dibawah 0")
 	}
 
 	product.Stock = newStock
-	return *product, nil
+	return product, nil
+}
+
+// Mengelompokkan produk yang dibeli
+// Per store
+func groupItemPerStore(items []*model.ProductToBeGrouped, customerID int) []model.Order {
+	var orders []model.Order
+	perStore := make(map[int][]model.ProductToBeGrouped)
+
+	storeIDs := make([]int, 0, len(perStore))
+	for storeID := range perStore {
+		storeIDs = append(storeIDs, storeID)
+	}
+
+	sort.Ints(storeIDs)
+
+	for _, product := range items {
+		perStore[product.StoreID] = append(perStore[product.StoreID], *product)
+	}
+
+	for _, storeID := range storeIDs {
+		items := perStore[storeID]
+
+		order := model.Order{
+			CustomerID: customerID,
+			StoreID:    storeID,
+			Status:     model.OrderStatusCreated,
+			Total:      0,
+		}
+
+		for _, item := range items {
+			orderItem := model.OrderItem{
+				ProductID:       item.ID,
+				ProductName:     item.Name,
+				VariantText:     item.VariantText,
+				PriceAtPurchase: item.PriceAtPurchase,
+				Quantity:        item.Quantity,
+				Subtotal:        0,
+			}
+
+			order.OrderItems = append(order.OrderItems, orderItem)
+		}
+
+		orders = append(orders, order)
+	}
+
+	return orders
 }
 
 // Menghitung harga subtotal per item serta total
-func countTotalSubtotal(orderItems []*model.OrderItem, order *model.Order) ([]model.OrderItem, model.Order) {
-	var appliedOrderItems []model.OrderItem
+func countTotalSubtotal(orderItems []*model.OrderItem, order *model.Order) (
+	[]*model.OrderItem, *model.Order,
+) {
+	var appliedOrderItems []*model.OrderItem
 
 	var total int64
 
@@ -186,12 +238,12 @@ func countTotalSubtotal(orderItems []*model.OrderItem, order *model.Order) ([]mo
 		subtotal = price * int64(quantity)
 		orderItem.Subtotal = subtotal
 
-		appliedOrderItems = append(appliedOrderItems, *orderItem)
+		appliedOrderItems = append(appliedOrderItems, orderItem)
 		total += subtotal
 	}
 
 	order.Total = total
-	return appliedOrderItems, *order
+	return appliedOrderItems, order
 }
 
 // Memeriksa Pengubahan Status Order
@@ -208,9 +260,9 @@ func checkChangeOrderStatus(older model.OrderStat, newer model.OrderStat) string
 
 // Memeriksa apakah order bisa direview
 // Input berupa:
-//   1. order item yang akan direview
-//   2. catatan order dari database
-//   3. daftar catatan item order dari database
+//  1. order item yang akan direview
+//  2. catatan order dari database
+//  3. daftar catatan item order dari database
 func canReviews(orderItem model.OrderItem, orderRecord model.Order, orderItemRecords []model.OrderItem) string {
 	if orderRecord.Status != model.OrderStatusCompleted {
 		return fmt.Sprintf("pesanan masih berstatus %v", orderRecord.Status)

@@ -51,3 +51,6 @@ go test ./...
 
 Seluruh test lulus pada verifikasi terakhir. Hasil dan perubahan tetap perlu
 ditinjau oleh pengembang proyek.
+
+--- 
+Menggunakan AI CHAT GPT untuk membuatkan migration store hingga product_reviews

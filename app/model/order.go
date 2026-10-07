@@ -5,21 +5,23 @@ import "time"
 // untuk per satu customer (immutable)
 // (satu customer bisa beberapa order dari berbagai store)
 type OrderGroup struct {
-	ID         int       `json:"id"`
-	CustomerID int       `json:"customer_id"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID         int         `json:"id"`
+	CustomerID int         `json:"customer_id"`
+	CreatedAt  time.Time   `json:"created_at"`
+	Orders     []OrderItem `json:"order_items"`
 }
 
 // order untuk dibaca per satu store
 // semua immutable kecuali status
 type Order struct {
-	ID           int       `json:"id"`
-	OrderGroupID int       `json:"order_group_id"`
-	CustomerID   int       `json:"customer_id"`
-	StoreID      int       `json:"store_id"`
-	Status       OrderStat `json:"status"` // non-immutable
-	Total        int64     `json:"total"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID           int         `json:"id"`
+	OrderGroupID int         `json:"order_group_id"`
+	CustomerID   int         `json:"customer_id"`
+	StoreID      int         `json:"store_id"`
+	Status       OrderStat   `json:"status"` // non-immutable
+	Total        int64       `json:"total"`
+	CreatedAt    time.Time   `json:"created_at"`
+	OrderItems   []OrderItem `json:"order_items"`
 }
 
 // Immutable Order Item
@@ -34,18 +36,27 @@ type OrderItem struct {
 	Subtotal        int64  `json:"subtotal"`
 }
 
+// Each Purchased Products
+// With it's variant text
+type ProductToBeGrouped struct {
+	Product
+	VariantText     string
+	PriceAtPurchase int64
+	Quantity        int
+}
+
 // CHECKOUT REQ STRUCT
 //
 // Satu request langsung membuat
 // OrderGroup sampai OrderItem
 type CheckoutReq struct {
-	Items []CheckoutItem `json:"items"`
+	Items []CheckoutItem `json:"items" validate:"required"`
 }
 
 type CheckoutItem struct {
-	ProductID  int   `json:"product_id"`
-	VariantIDs []int `json:"variant_ids"`
-	Quantity   int   `json:"quantity"`
+	ProductID  int   `json:"product_id" validate:"required,min=1"`
+	VariantIDs []int `json:"variant_ids" validate:"required"` //variant_ids BELUM dibatasi jumlahnya dengan tiap elemen minimal 1
+	Quantity   int   `json:"quantity" validate:"required,number,min=1,max=100000"`
 }
 
 // REVIEWS

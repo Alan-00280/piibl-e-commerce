@@ -324,3 +324,89 @@ func TestDuplicateChoosenVariantsWithDefaultBetweenDuplicates(t *testing.T) {
 		t.Errorf("duplicateChoosenVariants() space ID = %d, want %d", gotSpaceID, -2)
 	}
 }
+
+func TestGroupItemPerStore(t *testing.T) {
+	items := []*model.ProductToBeGrouped{
+		{
+			Product:         model.Product{ID: 1, StoreID: 10, Name: "Coffee"},
+			VariantText:     "SIZE:Large",
+			PriceAtPurchase: 25000,
+			Quantity:        2,
+		},
+		{
+			Product:         model.Product{ID: 2, StoreID: 10, Name: "Tea"},
+			PriceAtPurchase: 15000,
+			Quantity:        1,
+		},
+		{
+			Product:         model.Product{ID: 3, StoreID: 20, Name: "Bread"},
+			PriceAtPurchase: 10000,
+			Quantity:        1,
+		},
+	}
+
+	const customerID = 7
+	orders := groupItemPerStore(items, customerID)
+	if len(orders) != 2 {
+		t.Fatalf("groupItemPerStore() returned %d orders, want 2", len(orders))
+	}
+
+	orderItemsPerStore := make(map[int][]model.OrderItem)
+	for _, order := range orders {
+		if order.CustomerID != customerID {
+			t.Errorf("order customer ID = %d, want %d", order.CustomerID, customerID)
+		}
+		if order.Status != model.OrderStatusCreated {
+			t.Errorf("order status = %q, want %q", order.Status, model.OrderStatusCreated)
+		}
+		orderItemsPerStore[order.StoreID] = order.OrderItems
+	}
+
+	store10Items := orderItemsPerStore[10]
+	if len(store10Items) != 2 {
+		t.Fatalf("store 10 has %d order items, want 2", len(store10Items))
+	}
+	if got := store10Items[0]; got.ProductID != 1 ||
+		got.ProductName != "Coffee" ||
+		got.VariantText != "SIZE:Large" ||
+		got.PriceAtPurchase != 25000 ||
+		got.Quantity != 2 ||
+		got.Subtotal != 0 {
+		t.Errorf("first store 10 order item = %+v, want the Coffee purchase details", got)
+	}
+
+	store20Items := orderItemsPerStore[20]
+	if len(store20Items) != 1 {
+		t.Fatalf("store 20 has %d order items, want 1", len(store20Items))
+	}
+	if got := store20Items[0]; got.ProductID != 3 ||
+		got.ProductName != "Bread" ||
+		got.PriceAtPurchase != 10000 ||
+		got.Quantity != 1 ||
+		got.Subtotal != 0 {
+		t.Errorf("first store 20 order item = %+v, want the Bread purchase details", got)
+	}
+}
+
+func TestCountTotalSubtotalSinglePurchase(t *testing.T) {
+	orderItems := []*model.OrderItem{
+		{
+			ProductID:       1,
+			ProductName:     "Coffee",
+			PriceAtPurchase: 25000,
+			Quantity:        2,
+		},
+	}
+	order := model.Order{}
+
+	appliedItems, result := countTotalSubtotal(orderItems, &order)
+	if len(appliedItems) != 1 {
+		t.Fatalf("countTotalSubtotal() returned %d items, want 1", len(appliedItems))
+	}
+	if got, want := appliedItems[0].Subtotal, int64(50000); got != want {
+		t.Errorf("item subtotal = %d, want %d", got, want)
+	}
+	if got, want := result.Total, int64(50000); got != want {
+		t.Errorf("order total = %d, want %d", got, want)
+	}
+}
