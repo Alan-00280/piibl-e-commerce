@@ -41,6 +41,49 @@ pengecekan mengonfirmasi kasus nil pointer dereference sebelumnya tidak lagi
 terjadi. Ekspektasi test telah diselaraskan dengan perilaku tersebut, dan
 detail temuan serta statusnya dicatat di `logs/bug.log`.
 
+## Aktivitas AI pada sesi 7 Oktober 2026
+
+AI menambahkan test pada `app/service/order_rules_test.go` untuk memastikan
+`groupItemPerStore` mengelompokkan item pembelian berdasarkan toko dan
+`countTotalSubtotal` menghitung subtotal serta total untuk pembelian satu item.
+Test package service dijalankan dengan `go test ./app/service` dan lulus.
+
+AI mencatat temuan `groupItemPerStore` yang sebelumnya tidak memasukkan order
+hasil pengelompokan ke slice hasil pada `logs/bug.log`. Setelah implementasi
+yang ada diverifikasi mengembalikan order dan test pengelompokan lulus, status
+temuan di log diperbarui menjadi diperbaiki.
+
+AI juga mencatat investigasi kegagalan GET `/users`: `PermissionSet.Can`
+menerima `PermissionSet` nil karena field `Permission` belum diisi saat
+membentuk `routes.Dependencies`. Pemeriksaan berikutnya menemukan
+`Permission: permissionSet` sudah tercantum di `main.go`; status dan penyebab
+tersebut dicatat di `logs/bug.log`.
+
+AI mengisi migration `migrations/013_user_delete_perms.sql` untuk menambahkan
+permission `user:delete` dan memberikannya kepada `ADMIN`, serta
+`migrations/014_role_assign_perms.sql` untuk memastikan permission
+`role:assign` tersedia dan memberikannya kepada `ADMIN`. Kedua migration
+menggunakan `ON CONFLICT` agar operasi idempoten. Migration disiapkan, tetapi
+tidak dijalankan ke database.
+
+## Aktivitas AI pada sesi 8 Oktober 2026
+
+AI membantu membaca dan menganalisis arsitektur basis kode saat ini, lalu menyusun layer repository data access untuk Store dan Product:
+
+- Mengimplementasikan `app/repository/store_repository.go` dengan mengikuti pola pemrograman repository yang sudah ada (`user_repository.go`), mencakup:
+  - Definisi interface `StoreRepository` (`FindByID`, `FindByOwnerID`, `FindAll`, `Create`, `Update`, `Delete`).
+  - Implementasi struct `storePostgresRepository` menggunakan connection pool PostgreSQL (`pgxpool.Pool`).
+  - Pemetaan error standar: `ErrNotFound` untuk `pgx.ErrNoRows` dan `ErrDuplicate` untuk pelanggaran constraint unik `tenant_id`.
+  - Fungsi pembantu `buildFilterStore` untuk filter pencarian, status aktif, dan owner ID, serta scanner `scanStore`.
+- Mengimplementasikan `app/repository/product_repository.go` yang mencakup:
+  - Definisi interface `ProductRepository` dan implementasi `productPostgresRepository`.
+  - Operasi CRUD entitas Product (`FindByID`, `FindAll`, `Create`, `Update`, `Delete`).
+  - Manajemen stok dan status (`UpdateStock`, `UpdateStatus`), serta operasi atomik `DecreaseStock` dengan jaring pengaman `WHERE stock >= $1` untuk mencegah race condition.
+  - Manajemen Variant Space (`CreateVariantSpace`, `FindVariantSpaceByID`, `FindVariantSpacesByProductID`, `UpdateVariantSpace`, `DeleteVariantSpace`).
+  - Manajemen Product Variant (`CreateVariant`, `FindVariantByID`, `FindVariantsByProductID`, `FindVariantsByIDs`, `FindDefaultVariant`, `UpdateVariant`, `DeleteVariant`).
+- Memperbarui `model.ListQuery` pada `app/model/http.go` dengan menambahkan field pointer `*StoreFilter` dan `*ProductFilter` agar kompatibel dengan query pencarian repository Store dan Product.
+- Memverifikasi integritas kompilasi seluruh paket dengan `go build ./...` yang menghasilkan status sukses tanpa error.
+
 ## Verifikasi
 
 Test dijalankan dengan perintah berikut:

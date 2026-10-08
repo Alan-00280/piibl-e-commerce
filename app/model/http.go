@@ -32,6 +32,8 @@ type ListQuery struct {
 	Order    string
 	IsActive *bool
 	*UserFilter
+	*StoreFilter
+	*ProductFilter
 }
 
 func (q ListQuery) Offset() int {
