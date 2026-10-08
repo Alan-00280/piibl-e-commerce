@@ -83,7 +83,7 @@ func (h *UserService) Get(c *fiber.Ctx) error {
 		return helper.Unauthorized("can't verify your identity")
 	}
 
-	if !CanAccessUser(current, id, h.perms, "user:read:any") {
+	if !CanAccess(current, id, h.perms, "user:read:any") {
 		return helper.Forbidden("anda tidak memiliki hak untuk mengakses pengguna ini")
 	}
 
@@ -151,7 +151,7 @@ func (h *UserService) Replace(c *fiber.Ctx) error {
 		return helper.Unauthorized("can't verify your identity")
 	}
 
-	if !CanAccessUser(current, id, h.perms, "user:update:any") {
+	if !CanAccess(current, id, h.perms, "user:update:any") {
 		return helper.Forbidden("anda tidak dapat hak untuk menggantikan data pengguna ini")
 	}
 
@@ -195,7 +195,7 @@ func (h *UserService) Patch(c *fiber.Ctx) error {
 		return helper.Unauthorized("can't verify your identity")
 	}
 
-	if !CanAccessUser(current, id, h.perms, "user:update:any") {
+	if !CanAccess(current, id, h.perms, "user:update:any") {
 		return helper.Forbidden("anda tidak dapat hak untuk memperbarui data pengguna ini")
 	}
 

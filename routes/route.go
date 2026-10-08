@@ -12,15 +12,17 @@ import (
 )
 
 type Dependencies struct {
-	Pool        *pgxpool.Pool
-	AuthService *service.AuthService
-	UserService *service.UserService
-	JWT         *helper.JWTManager
-	Permission  *helper.PermissionSet
+	Pool         *pgxpool.Pool
+	AuthService  *service.AuthService
+	UserService  *service.UserService
+	StoreService *service.StoreService
+	JWT          *helper.JWTManager
+	Permission   *helper.PermissionSet
 }
 
 func Register(app *fiber.App, deps Dependencies) {
 	api := app.Group("/api/v1")
+	my := api.Group("/my", middleware.RequireAuth(deps.JWT))
 	permissions := deps.Permission
 
 	// HEALTH CHECK (WITH DB POOL CONNECTION)
@@ -34,7 +36,7 @@ func Register(app *fiber.App, deps Dependencies) {
 	auth.Post("/logout", deps.AuthService.Logout)
 	auth.Get("/me", middleware.RequireAuth(deps.JWT), deps.AuthService.Me)
 
-	// PROTECTED
+	// USER
 	user := api.Group("/users", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
 	user.Get("/", middleware.RequirePermission(permissions, "user:list"), deps.UserService.ListAll)
 	user.Post("/", middleware.RequirePermission(permissions, "user:update:any"), deps.UserService.Create)
@@ -44,6 +46,18 @@ func Register(app *fiber.App, deps Dependencies) {
 	user.Put("/:id", deps.UserService.Replace)
 	user.Get("/:id", deps.UserService.Get)
 	user.Patch("/:id", deps.UserService.Patch)
+
+	// STORES
+	store := api.Group("/stores", middleware.RequireJSON)
+	store.Get("/", deps.StoreService.ListAll)
+	store.Get("/:id", deps.StoreService.Get)
+
+	store.Post("/", middleware.RequireAuth(deps.JWT), middleware.RequirePermission(permissions, "store:create"), deps.StoreService.Create)
+	store.Patch("/:id", middleware.RequireAuth(deps.JWT), deps.StoreService.Patch)
+	store.Delete("/:id", middleware.RequireAuth(deps.JWT), deps.StoreService.Deactivate)
+	my.Get("/stores", deps.StoreService.GetStoreTenant)
+
+	// TODO: Beri Checkout Limiter
 
 }
 

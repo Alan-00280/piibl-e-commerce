@@ -71,3 +71,6 @@ func LoginRateLimiter() fiber.Handler {
 		},
 	})
 }
+
+// TODO: Limiter Saat Checkout
+

@@ -83,6 +83,12 @@ AI membantu membaca dan menganalisis arsitektur basis kode saat ini, lalu menyus
   - Manajemen Product Variant (`CreateVariant`, `FindVariantByID`, `FindVariantsByProductID`, `FindVariantsByIDs`, `FindDefaultVariant`, `UpdateVariant`, `DeleteVariant`).
 - Memperbarui `model.ListQuery` pada `app/model/http.go` dengan menambahkan field pointer `*StoreFilter` dan `*ProductFilter` agar kompatibel dengan query pencarian repository Store dan Product.
 - Memverifikasi integritas kompilasi seluruh paket dengan `go build ./...` yang menghasilkan status sukses tanpa error.
+- Memecah implementasi repository Product berdasarkan tanggung jawab menjadi tiga file dalam package yang sama: `app/repository/product_repository.go` untuk Product, `app/repository/variant_space_repository.go` untuk Variant Space, dan `app/repository/product_variant_repository.go` untuk Product Variant. Interface serta pemanggil repository tetap sama; perubahan hanya mengatur ulang lokasi implementasinya.
+- Validasi setelah pemisahan: `go build ./...` berhasil. `go test ./...` masih gagal pada `TestGroupItemPerStore` (mengembalikan 0 order, ekspektasi 2) dan `TestCreateUserValidation/valid_user` (field role wajib diisi); kegagalan tersebut berada di luar perubahan repository ini.
+- Memperbarui `TestCreateStoreValidation` di `app/service/store_rules_test.go` mengikuti bentuk baru `CreateStoresReq`, yang tidak lagi memuat `OwnerID`, dan menambahkan pengujian panjang nama maksimum. Test belum dapat dijalankan karena `store_repository.go` masih mengakses `Stores.OwnerID`, sedangkan model menggunakan `TenantID`.
+- Memperbarui filter Product agar menangani store, kategori, status, rentang harga berdasarkan harga variant `_default`, dan rentang rating rata-rata review. Pointer filter opsional diperiksa sebelum digunakan.
+- Mengubah `ProductRepository.FindByID` dan `FindAll` agar mengembalikan `ProductBasePrice`/`[]ProductBasePrice`. Hasil menyertakan harga dasar `_default` dan `OverallRating`; pengurutan `price` dan `rating` menggunakan kedua nilai tersebut.
+- Verifikasi perubahan filter dan response Product: `go test ./app/repository` dan `go build ./...` berhasil.
 
 ## Verifikasi
 

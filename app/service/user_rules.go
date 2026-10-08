@@ -27,23 +27,6 @@ func IsEmptyPatchUser(req model.PatchUserRequest) bool {
 	return req.Username == nil && req.Email == nil && req.IsActive == nil
 }
 
-// func CanAccessUser(model.AuthUser, targetID int, *helper.PermissionSet, anyPermission string) bool
-// memeriksa id user terautentikasi dengan target id (/:id)
-// diijinkan ke target id sama
-// diijinkan ke permission *:any
-func CanAccessUser(
-	current model.AuthUser,
-	targetID int,
-	perms *helper.PermissionSet,
-	anyPermission string,
-) bool {
-	if current.UserID == targetID {
-		return true
-	}
-
-	return perms.Can(current.Role, anyPermission)
-}
-
 // func ValidateAssignRole(model.AuthUser, targetID int, model.AssignRoleRequest, *helper.PermissionSet) map[string]string
 // memeriksa current id dengan target id
 //

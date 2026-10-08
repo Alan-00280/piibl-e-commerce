@@ -4,14 +4,15 @@ import "time"
 
 // PRODUCTS
 type Product struct {
-	ID          int         `json:"id"`
-	StoreID     int         `json:"store_id"`
-	CategoryID  int         `json:"category_id"`
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	Stock       int         `json:"stock"`
-	Status      ProductStat `json:"status"`
-	CreatedAt   time.Time   `json:"created_at"`
+	ID            int         `json:"id"`
+	StoreID       int         `json:"store_id"`
+	CategoryID    int         `json:"category_id"`
+	Name          string      `json:"name"`
+	Description   string      `json:"description"`
+	Stock         int         `json:"stock"`
+	Status        ProductStat `json:"status"`
+	CreatedAt     time.Time   `json:"created_at"`
+	OverallRating float64     `json:"rating"`
 }
 
 type ProductCreateReq struct {
@@ -40,8 +41,13 @@ type ProductUpdateStockReq struct {
 }
 
 type ProductFilter struct {
-	StoreID    int
-	CategoryID int
+	StoreID    *int
+	CategoryID *int
+	Status     ProductStat
+	PriceMax   *int64
+	PriceMin   *int64
+	MaxRating  *float64
+	MinRating  *float64
 }
 
 type ProductVariantSpaces struct {

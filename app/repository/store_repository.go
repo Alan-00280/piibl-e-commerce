@@ -13,11 +13,12 @@ import (
 
 type StoreRepository interface {
 	FindByID(ctx context.Context, id int) (model.Stores, error)
-	FindByOwnerID(ctx context.Context, ownerID int) (model.Stores, error)
+	FindByTenantID(ctx context.Context, TenantID int) (model.Stores, error)
 	FindAll(ctx context.Context, q model.ListQuery) ([]model.Stores, int, error)
 	Create(ctx context.Context, s model.Stores) (model.Stores, error)
 	Update(ctx context.Context, s model.Stores) (model.Stores, error)
 	Delete(ctx context.Context, id int) error
+	Deactivate(ctx context.Context, id int) error
 }
 
 type storePostgresRepository struct {
@@ -45,7 +46,7 @@ func (r *storePostgresRepository) FindByID(ctx context.Context, id int) (model.S
 	query := fmt.Sprintf("SELECT %s FROM stores WHERE id = $1", storeColumns)
 
 	if err := r.pool.QueryRow(ctx, query, id).Scan(
-		&result.ID, &result.OwnerID, &result.Name, &result.Description, &result.IsActive, &createdAt,
+		&result.ID, &result.TenantID, &result.Name, &result.Description, &result.IsActive, &createdAt,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.Stores{}, ErrNotFound
@@ -57,14 +58,14 @@ func (r *storePostgresRepository) FindByID(ctx context.Context, id int) (model.S
 	return result, nil
 }
 
-func (r *storePostgresRepository) FindByOwnerID(ctx context.Context, ownerID int) (model.Stores, error) {
+func (r *storePostgresRepository) FindByTenantID(ctx context.Context, TenantID int) (model.Stores, error) {
 	result := model.Stores{}
 	var createdAt time.Time
 
 	query := fmt.Sprintf("SELECT %s FROM stores WHERE tenant_id = $1", storeColumns)
 
-	if err := r.pool.QueryRow(ctx, query, ownerID).Scan(
-		&result.ID, &result.OwnerID, &result.Name, &result.Description, &result.IsActive, &createdAt,
+	if err := r.pool.QueryRow(ctx, query, TenantID).Scan(
+		&result.ID, &result.TenantID, &result.Name, &result.Description, &result.IsActive, &createdAt,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.Stores{}, ErrNotFound
@@ -78,6 +79,7 @@ func (r *storePostgresRepository) FindByOwnerID(ctx context.Context, ownerID int
 
 func (r *storePostgresRepository) FindAll(ctx context.Context, q model.ListQuery) ([]model.Stores, int, error) {
 	where, args := buildFilterStore(q)
+	where += " AND is_active = true"
 
 	var total int
 	if err := r.pool.QueryRow(ctx, "SELECT COUNT(*) FROM stores"+where, args...).Scan(&total); err != nil {
@@ -126,7 +128,7 @@ func (r *storePostgresRepository) Create(ctx context.Context, s model.Stores) (m
 	var createdAt time.Time
 	query := "INSERT INTO stores (tenant_id, name, description, is_active) VALUES ($1, $2, $3, $4) RETURNING id, created_at"
 
-	if err := r.pool.QueryRow(ctx, query, s.OwnerID, s.Name, s.Description, s.IsActive).Scan(&s.ID, &createdAt); err != nil {
+	if err := r.pool.QueryRow(ctx, query, s.TenantID, s.Name, s.Description, s.IsActive).Scan(&s.ID, &createdAt); err != nil {
 		if isUniqueViolation(err) {
 			return model.Stores{}, ErrDuplicate
 		}
@@ -145,7 +147,7 @@ func (r *storePostgresRepository) Update(ctx context.Context, s model.Stores) (m
 	          RETURNING id, tenant_id, name, COALESCE(description, ''), is_active, created_at`
 
 	if err := r.pool.QueryRow(ctx, query, s.Name, s.Description, s.IsActive, s.ID).Scan(
-		&s.ID, &s.OwnerID, &s.Name, &s.Description, &s.IsActive, &createdAt,
+		&s.ID, &s.TenantID, &s.Name, &s.Description, &s.IsActive, &createdAt,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.Stores{}, ErrNotFound
@@ -173,6 +175,19 @@ func (r *storePostgresRepository) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
+func (r *storePostgresRepository) Deactivate(ctx context.Context, id int) error {
+	tag, err := r.pool.Exec(ctx, "UPDATE stores SET is_active = FALSE WHERE id = $1", id)
+	if err != nil {
+		return fmt.Errorf("[ERROR] can't deactivate stores = %w", err)
+	}
+
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
 func buildFilterStore(q model.ListQuery) (string, []any) {
 	where := " WHERE 1=1 "
 	args := []any{}
@@ -183,14 +198,9 @@ func buildFilterStore(q model.ListQuery) (string, []any) {
 		args = append(args, "%"+q.Search+"%")
 	}
 
-	if q.IsActive != nil {
-		where += fmt.Sprintf(" AND is_active = $%d", len(args)+1)
-		args = append(args, *q.IsActive)
-	}
-
-	if q.StoreFilter != nil && q.StoreFilter.OwnerID > 0 {
+	if q.StoreFilter != nil && q.StoreFilter.TenantID != nil && *q.StoreFilter.TenantID > 0 {
 		where += fmt.Sprintf(" AND tenant_id = $%d", len(args)+1)
-		args = append(args, q.StoreFilter.OwnerID)
+		args = append(args, q.StoreFilter.TenantID)
 	}
 
 	return where, args
@@ -200,7 +210,7 @@ func scanStore(rows pgx.Rows) (model.Stores, error) {
 	var s model.Stores
 	var createdAt time.Time
 
-	if err := rows.Scan(&s.ID, &s.OwnerID, &s.Name, &s.Description, &s.IsActive, &createdAt); err != nil {
+	if err := rows.Scan(&s.ID, &s.TenantID, &s.Name, &s.Description, &s.IsActive, &createdAt); err != nil {
 		return model.Stores{}, err
 	}
 	s.CreatedAt = createdAt.Format(time.RFC3339)
