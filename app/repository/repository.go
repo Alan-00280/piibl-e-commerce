@@ -9,6 +9,7 @@ import (
 var (
 	ErrNotFound  = errors.New("data not found")
 	ErrDuplicate = errors.New("data already exists")
+	ErrInactive  = errors.New("data is being inactive")
 	ErrVariant   = errors.New("varian produk tidak sah")
 )
 

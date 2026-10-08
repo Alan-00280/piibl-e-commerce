@@ -12,12 +12,13 @@ import (
 )
 
 type Dependencies struct {
-	Pool         *pgxpool.Pool
-	AuthService  *service.AuthService
-	UserService  *service.UserService
-	StoreService *service.StoreService
-	JWT          *helper.JWTManager
-	Permission   *helper.PermissionSet
+	Pool           *pgxpool.Pool
+	AuthService    *service.AuthService
+	UserService    *service.UserService
+	StoreService   *service.StoreService
+	ProductService *service.ProductService
+	JWT            *helper.JWTManager
+	Permission     *helper.PermissionSet
 }
 
 func Register(app *fiber.App, deps Dependencies) {
@@ -57,7 +58,28 @@ func Register(app *fiber.App, deps Dependencies) {
 	store.Delete("/:id", middleware.RequireAuth(deps.JWT), deps.StoreService.Deactivate)
 	my.Get("/stores", deps.StoreService.GetStoreTenant)
 
-	// TODO: Beri Checkout Limiter
+	// PRODUCT
+	product := api.Group("/products")
+	product.Get("/", deps.ProductService.ListAll)
+	product.Get("/:id", deps.ProductService.Get)
+	product.Post("/", middleware.RequireJSON, middleware.RequireAuth(deps.JWT), middleware.RequirePermission(permissions, "product:create"), deps.ProductService.Create)
+	product.Patch("/:id", middleware.RequireJSON, middleware.RequireAuth(deps.JWT), deps.ProductService.Patch)
+	product.Delete("/:id", middleware.RequireAuth(deps.JWT), deps.ProductService.Deactivate)
+	product.Patch("/:id/stock", middleware.RequireJSON, middleware.RequireAuth(deps.JWT), deps.ProductService.Restock)
+	product.Patch("/:id/price", middleware.RequireJSON, middleware.RequireAuth(deps.JWT), deps.ProductService.Reprice)
+	my.Get("/products", deps.ProductService.ProductStore)
+
+	// VARIANT SPACES
+	product.Post("/:id/variant-spaces", middleware.RequireJSON, middleware.RequireAuth(deps.JWT), deps.ProductService.CreateSVariant)
+	api.Patch("/variant-spaces/:id", middleware.RequireJSON, middleware.RequireAuth(deps.JWT), deps.ProductService.PatchSVariant)
+	api.Delete("/variant-spaces/:id", middleware.RequireAuth(deps.JWT), deps.ProductService.DeleteSVaraint)
+
+	// VARIANT
+	api.Post("/variants", middleware.RequireJSON, middleware.RequireAuth(deps.JWT), deps.ProductService.CreateVariant)
+	api.Patch("/variants/:id", middleware.RequireJSON, middleware.RequireAuth(deps.JWT), deps.ProductService.PatchVariant)
+	api.Delete("/variants/:id", middleware.RequireAuth(deps.JWT), deps.ProductService.DeleteVariant)
+
+	// TODO reminder saja: Beri Limiter di endpoint Checkout
 
 }
 

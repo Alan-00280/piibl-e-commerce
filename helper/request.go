@@ -72,7 +72,7 @@ func ParseListQuery(c *fiber.Ctx) model.ListQuery {
 
 	storesFilter := model.StoreFilter{}
 	if tenantID := c.Query("tenant_id"); strings.TrimSpace(tenantID) != "" {
-		if v, err := strconv.Atoi(tenantID); err != nil && v > 0 {
+		if v, err := strconv.Atoi(tenantID); err == nil && v > 0 {
 			storesFilter.TenantID = &v
 		}
 	}
@@ -82,36 +82,36 @@ func ParseListQuery(c *fiber.Ctx) model.ListQuery {
 		Status: model.ProductStatActive,
 	}
 	if StoreID := c.Query("store_id"); strings.TrimSpace(StoreID) != "" {
-		if v, err := strconv.Atoi(StoreID); err != nil && v > 0 {
+		if v, err := strconv.Atoi(StoreID); err == nil && v > 0 {
 			productFilter.StoreID = &v
 		}
 	}
 	if CategoryID := c.Query("category"); strings.TrimSpace(CategoryID) != "" {
-		if v, err := strconv.Atoi(CategoryID); err != nil && v > 0 {
+		if v, err := strconv.Atoi(CategoryID); err == nil && v > 0 {
 			productFilter.CategoryID = &v
 		}
 	}
 	if MaxPrice := c.Query("maxprice"); strings.TrimSpace(MaxPrice) != "" {
-		if v, err := strconv.ParseInt(MaxPrice, 10, 64); err != nil && v > 0 {
+		if v, err := strconv.ParseInt(MaxPrice, 10, 64); err == nil && v > 0 {
 			productFilter.PriceMax = &v
 		}
 	}
 	if MinPrice := c.Query("minprice"); strings.TrimSpace(MinPrice) != "" {
-		if v, err := strconv.ParseInt(MinPrice, 10, 64); err != nil && v > 0 {
+		if v, err := strconv.ParseInt(MinPrice, 10, 64); err == nil && v > 0 {
 			productFilter.PriceMin = &v
+		} else {
+			var zeroInt64 int64
+			zeroInt64 = int64(0)
+			productFilter.PriceMin = &zeroInt64
 		}
-
-		var zeroInt64 int64
-		zeroInt64 = int64(0)
-		productFilter.PriceMin = &zeroInt64
 	}
 	if RatingMax := c.Query("maxrate"); strings.TrimSpace(RatingMax) != "" {
-		if v, err := strconv.ParseFloat(RatingMax, 64); err != nil && v > 0 {
+		if v, err := strconv.ParseFloat(RatingMax, 64); err == nil && v > 0 {
 			productFilter.MaxRating = &v
 		}
 	}
 	if RatingMin := c.Query("minrate"); strings.TrimSpace(RatingMin) != "" {
-		if v, err := strconv.ParseFloat(RatingMin, 64); err != nil && v > 0 {
+		if v, err := strconv.ParseFloat(RatingMin, 64); err == nil && v > 0 {
 			productFilter.MinRating = &v
 		}
 	}

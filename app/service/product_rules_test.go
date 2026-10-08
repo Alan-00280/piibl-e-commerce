@@ -9,6 +9,8 @@ import (
 
 func TestProductCreateValidation(t *testing.T) {
 	validator := helper.NewValidator(&helper.PasswordCommonSet{PasswordSet: map[string]struct{}{}})
+	categoryID := 2
+	invalidCategory := 0
 
 	tests := []struct {
 		name    string
@@ -18,35 +20,59 @@ func TestProductCreateValidation(t *testing.T) {
 		{
 			name: "valid product",
 			req: model.ProductCreateReq{
-				StoreID: 1, CategoryID: 2, Name: "Kopi Arabika 250", Description: "Kopi pilihan dalam kemasan 250 gram",
-				Stock: 10, Status: model.ProductStatActive,
+				CategoryID: &categoryID, Name: "Kopi Arabika 250", Description: "Kopi pilihan dalam kemasan 250 gram",
+				BasePrice: 15000, Stock: 10, Status: model.ProductStatActive,
 			},
 		},
 		{
 			name: "zero stock is valid",
 			req: model.ProductCreateReq{
-				StoreID: 1, CategoryID: 2, Name: "Kopi Arabika", Description: "Kopi pilihan dalam kemasan 250 gram",
-				Stock: 0, Status: model.ProductStatActive,
+				CategoryID: &categoryID, Name: "Kopi Arabika", Description: "Kopi pilihan dalam kemasan 250 gram",
+				BasePrice: 15000, Stock: 0, Status: model.ProductStatActive,
 			},
 		},
 		{
 			name: "stock lower bound above zero is valid",
 			req: model.ProductCreateReq{
-				StoreID: 1, CategoryID: 2, Name: "Kopi Arabika", Description: "Kopi pilihan dalam kemasan 250 gram",
-				Stock: 1, Status: model.ProductStatActive,
+				CategoryID: &categoryID, Name: "Kopi Arabika", Description: "Kopi pilihan dalam kemasan 250 gram",
+				BasePrice: 15000, Stock: 1, Status: model.ProductStatActive,
 			},
 		},
 		{
 			name: "stock upper bound is valid",
 			req: model.ProductCreateReq{
-				StoreID: 1, CategoryID: 2, Name: "Kopi Arabika", Description: "Kopi pilihan dalam kemasan 250 gram",
-				Stock: 100000, Status: model.ProductStatActive,
+				CategoryID: &categoryID, Name: "Kopi Arabika", Description: "Kopi pilihan dalam kemasan 250 gram",
+				BasePrice: 15000, Stock: 100000, Status: model.ProductStatActive,
 			},
+		},
+		{
+			name: "base price is required",
+			req: model.ProductCreateReq{
+				CategoryID: &categoryID, Name: "Kopi Arabika", Description: "Kopi pilihan dalam kemasan 250 gram",
+				Stock: 10, Status: model.ProductStatActive,
+			},
+			wantErr: "base_price",
+		},
+		{
+			name: "base price must be at least 100",
+			req: model.ProductCreateReq{
+				CategoryID: &categoryID, Name: "Kopi Arabika", Description: "Kopi pilihan dalam kemasan 250 gram",
+				BasePrice: 99, Stock: 10, Status: model.ProductStatActive,
+			},
+			wantErr: "base_price",
+		},
+		{
+			name: "base price cannot exceed upper bound",
+			req: model.ProductCreateReq{
+				CategoryID: &categoryID, Name: "Kopi Arabika", Description: "Kopi pilihan dalam kemasan 250 gram",
+				BasePrice: 1000000001, Stock: 10, Status: model.ProductStatActive,
+			},
+			wantErr: "base_price",
 		},
 		{
 			name: "store ID must be positive",
 			req: model.ProductCreateReq{
-				StoreID: 0, CategoryID: 2, Name: "Kopi Arabika", Description: "Kopi pilihan dalam kemasan 250 gram",
+				CategoryID: &categoryID, Name: "Kopi Arabika", Description: "Kopi pilihan dalam kemasan 250 gram",
 				Stock: 10, Status: model.ProductStatActive,
 			},
 			wantErr: "store_id",
@@ -54,7 +80,7 @@ func TestProductCreateValidation(t *testing.T) {
 		{
 			name: "category ID must be positive",
 			req: model.ProductCreateReq{
-				StoreID: 1, CategoryID: 0, Name: "Kopi Arabika", Description: "Kopi pilihan dalam kemasan 250 gram",
+				CategoryID: &invalidCategory, Name: "Kopi Arabika", Description: "Kopi pilihan dalam kemasan 250 gram",
 				Stock: 10, Status: model.ProductStatActive,
 			},
 			wantErr: "category_id",
@@ -62,7 +88,7 @@ func TestProductCreateValidation(t *testing.T) {
 		{
 			name: "name must be alphanumeric with spaces",
 			req: model.ProductCreateReq{
-				StoreID: 1, CategoryID: 2, Name: "Kopi Arabika!", Description: "Kopi pilihan dalam kemasan 250 gram",
+				CategoryID: &categoryID, Name: "Kopi Arabika!", Description: "Kopi pilihan dalam kemasan 250 gram",
 				Stock: 10, Status: model.ProductStatActive,
 			},
 			wantErr: "name",
@@ -70,14 +96,14 @@ func TestProductCreateValidation(t *testing.T) {
 		{
 			name: "description is required",
 			req: model.ProductCreateReq{
-				StoreID: 1, CategoryID: 2, Name: "Kopi Arabika", Stock: 10, Status: model.ProductStatActive,
+				CategoryID: &categoryID, Name: "Kopi Arabika", Stock: 10, Status: model.ProductStatActive,
 			},
 			wantErr: "description",
 		},
 		{
 			name: "stock cannot exceed upper bound",
 			req: model.ProductCreateReq{
-				StoreID: 1, CategoryID: 2, Name: "Kopi Arabika", Description: "Kopi pilihan dalam kemasan 250 gram",
+				CategoryID: &categoryID, Name: "Kopi Arabika", Description: "Kopi pilihan dalam kemasan 250 gram",
 				Stock: 100001, Status: model.ProductStatActive,
 			},
 			wantErr: "stock",
@@ -85,7 +111,7 @@ func TestProductCreateValidation(t *testing.T) {
 		{
 			name: "status is required",
 			req: model.ProductCreateReq{
-				StoreID: 1, CategoryID: 2, Name: "Kopi Arabika", Description: "Kopi pilihan dalam kemasan 250 gram",
+				CategoryID: &categoryID, Name: "Kopi Arabika", Description: "Kopi pilihan dalam kemasan 250 gram",
 				Stock: 10,
 			},
 			wantErr: "status",
@@ -111,12 +137,8 @@ func TestProductCreateValidation(t *testing.T) {
 
 func TestProductPatchValidation(t *testing.T) {
 	validator := helper.NewValidator(&helper.PasswordCommonSet{PasswordSet: map[string]struct{}{}})
-	validName := "Kopi Arabika 250"
 	invalidName := "Kopi!"
 	invalidCategoryID := 0
-	validStock := 25
-	zeroStock := 0
-	invalidStock := 100001
 	inactive := model.ProductStatInactive
 
 	tests := []struct {
@@ -125,14 +147,6 @@ func TestProductPatchValidation(t *testing.T) {
 		wantErr string
 	}{
 		{name: "empty patch is valid for field validation"},
-		{
-			name: "valid name and stock",
-			req:  model.ProductPatchReq{Name: &validName, Stock: &validStock},
-		},
-		{
-			name: "zero stock is valid",
-			req:  model.ProductPatchReq{Stock: &zeroStock},
-		},
 		{
 			name: "status may be explicitly set to inactive",
 			req:  model.ProductPatchReq{Status: &inactive},
@@ -146,11 +160,6 @@ func TestProductPatchValidation(t *testing.T) {
 			name:    "name cannot contain punctuation",
 			req:     model.ProductPatchReq{Name: &invalidName},
 			wantErr: "name",
-		},
-		{
-			name:    "stock cannot exceed upper bound",
-			req:     model.ProductPatchReq{Stock: &invalidStock},
-			wantErr: "stock",
 		},
 	}
 

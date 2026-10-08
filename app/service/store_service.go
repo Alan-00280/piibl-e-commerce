@@ -72,14 +72,7 @@ func (s *StoreService) Get(c *fiber.Ctx) error {
 	}
 
 	if store.IsActive == false {
-		currentUser, ok := helper.CurentUser(c)
-		if !ok {
-			return helper.Forbidden("store sedang inactive")
-		}
-
-		if currentUser.UserID != store.TenantID {
-			return helper.Forbidden("anda tidak memiliki hak atas inactive store ini")
-		}
+		return helper.Forbidden("store sedang inactive")
 	}
 
 	return helper.Ok(c, "store ditemukan", store)

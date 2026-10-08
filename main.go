@@ -94,14 +94,18 @@ func main() {
 	storeRepo := repository.NewStoreRepository(pool)
 	storeService := service.NewStoreService(storeRepo, permissionSet, appValidator)
 
+	productRepo := repository.NewProductRepository(pool)
+	productService := service.NewProductService(productRepo, storeRepo, permissionSet, appValidator)
+
 	// APP
 	deps := routes.Dependencies{
-		Pool:         pool,
-		JWT:          jwtManager,
-		Permission:   permissionSet,
-		AuthService:  authService,
-		UserService:  userService,
-		StoreService: storeService,
+		Pool:           pool,
+		JWT:            jwtManager,
+		Permission:     permissionSet,
+		AuthService:    authService,
+		UserService:    userService,
+		StoreService:   storeService,
+		ProductService: productService,
 	}
 
 	app := config.NewApp(logger, deps)

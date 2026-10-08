@@ -19,7 +19,10 @@ type ProductRepository interface {
 	// Product
 	FindByID(ctx context.Context, id int) (ProductBasePrice, error)
 	FindAll(ctx context.Context, q model.ListQuery) ([]ProductBasePrice, int, error)
-	Create(ctx context.Context, p model.Product) (model.Product, error)
+	FindTenantIDByProductID(ctx context.Context, productID int) (int, error)
+	// FindByStoreID includes inactive products; callers must authorize the tenant and store ownership.
+	FindByStoreID(ctx context.Context, storeID int) ([]ProductBasePrice, error)
+	Create(ctx context.Context, p model.Product, basePrice int64) (ProductBasePrice, error)
 	Update(ctx context.Context, p model.Product) (model.Product, error)
 	Delete(ctx context.Context, id int) error
 	Deactivate(ctx context.Context, id int) error
@@ -89,10 +92,30 @@ func (r *productPostgresRepository) FindByID(ctx context.Context, id int) (Produ
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ProductBasePrice{}, ErrNotFound
 		}
+		if result.Product.Status == model.ProductStatInactive {
+			return ProductBasePrice{}, ErrInactive
+		}
 		return ProductBasePrice{}, fmt.Errorf("[ERROR] can't get from products: %w", err)
 	}
 
 	return result, nil
+}
+
+func (r *productPostgresRepository) FindTenantIDByProductID(ctx context.Context, productID int) (int, error) {
+	var tenantID int
+	query := `SELECT s.tenant_id
+		FROM products p
+		JOIN stores s ON s.id = p.store_id
+		WHERE p.id = $1`
+
+	if err := r.pool.QueryRow(ctx, query, productID).Scan(&tenantID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, ErrNotFound
+		}
+		return 0, fmt.Errorf("[ERROR] can't get tenant id by product id: %w", err)
+	}
+
+	return tenantID, nil
 }
 
 func (r *productPostgresRepository) FindAll(ctx context.Context, q model.ListQuery) ([]ProductBasePrice, int, error) {
@@ -149,18 +172,71 @@ func (r *productPostgresRepository) FindAll(ctx context.Context, q model.ListQue
 	return result, total, nil
 }
 
-func (r *productPostgresRepository) Create(ctx context.Context, p model.Product) (model.Product, error) {
+func (r *productPostgresRepository) FindByStoreID(ctx context.Context, storeID int) ([]ProductBasePrice, error) {
+	query := fmt.Sprintf(`SELECT %s,
+		COALESCE((SELECT pv.price
+			FROM product_variants pv
+			WHERE pv.product_id = p.id AND pv.name = '_default' AND pv.space_id IS NULL
+			ORDER BY pv.id LIMIT 1), 0) AS base_price,
+		COALESCE((SELECT AVG(pr.rating)
+			FROM product_reviews pr
+			WHERE pr.product_id = p.id), 0) AS overall_rating
+		FROM products p
+		WHERE p.store_id = $1
+		ORDER BY p.id ASC`, productColumns)
+
+	rows, err := r.pool.Query(ctx, query, storeID)
+	if err != nil {
+		return nil, fmt.Errorf("[ERROR] can't get products by store id: %w", err)
+	}
+	defer rows.Close()
+
+	result := []ProductBasePrice{}
+	for rows.Next() {
+		product, err := scanProductBasePrice(rows)
+		if err != nil {
+			return nil, fmt.Errorf("[ERROR] can't scan product by store id: %w", err)
+		}
+		result = append(result, product)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("[ERROR] error reading products by store id: %w", err)
+	}
+
+	return result, nil
+}
+
+func (r *productPostgresRepository) Create(ctx context.Context, p model.Product, basePrice int64) (ProductBasePrice, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return ProductBasePrice{}, fmt.Errorf("[ERROR] can't begin product creation transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	query := `INSERT INTO products (store_id, category_id, name, description, stock, status) 
 	          VALUES ($1, $2, $3, $4, $5, $6) 
 	          RETURNING id, created_at`
 
-	if err := r.pool.QueryRow(ctx, query, p.StoreID, p.CategoryID, p.Name, p.Description, p.Stock, p.Status).Scan(
+	if err := tx.QueryRow(ctx, query, p.StoreID, p.CategoryID, p.Name, p.Description, p.Stock, p.Status).Scan(
 		&p.ID, &p.CreatedAt,
 	); err != nil {
-		return model.Product{}, fmt.Errorf("[ERROR] can't create product: %w", err)
+		return ProductBasePrice{}, fmt.Errorf("[ERROR] can't create product: %w", err)
 	}
 
-	return p, nil
+	defaultVariantQuery := `INSERT INTO product_variants (product_id, space_id, name, price)
+	                        VALUES ($1, NULL, '_default', $2)`
+	if _, err := tx.Exec(ctx, defaultVariantQuery, p.ID, basePrice); err != nil {
+		return ProductBasePrice{}, fmt.Errorf("[ERROR] can't create default product variant: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ProductBasePrice{}, fmt.Errorf("[ERROR] can't commit product creation: %w", err)
+	}
+
+	return ProductBasePrice{
+		Product:   p,
+		BasePrice: basePrice,
+	}, nil
 }
 
 func (r *productPostgresRepository) Update(ctx context.Context, p model.Product) (model.Product, error) {
@@ -259,22 +335,13 @@ func (r *productPostgresRepository) DecreaseStock(ctx context.Context, id int, q
 // =========================================================
 
 func buildFilterProduct(q model.ListQuery) (string, []any) {
-	where := " WHERE 1=1 "
-	args := []any{}
+	where := " WHERE p.status = $1 "
+	args := []any{model.ProductStatActive}
 
 	if q.Search != "" {
 		where += fmt.Sprintf(" AND (p.name ILIKE $%d OR p.description ILIKE $%d)",
 			len(args)+1, len(args)+1)
 		args = append(args, "%"+q.Search+"%")
-	}
-
-	if q.IsActive != nil {
-		where += fmt.Sprintf(" AND p.status = $%d", len(args)+1)
-		if *q.IsActive {
-			args = append(args, model.ProductStatActive)
-		} else {
-			args = append(args, model.ProductStatInactive)
-		}
 	}
 
 	if filter := q.ProductFilter; filter != nil {
@@ -285,10 +352,6 @@ func buildFilterProduct(q model.ListQuery) (string, []any) {
 		if filter.CategoryID != nil && *filter.CategoryID > 0 {
 			where += fmt.Sprintf(" AND p.category_id = $%d", len(args)+1)
 			args = append(args, *filter.CategoryID)
-		}
-		if filter.Status != "" {
-			where += fmt.Sprintf(" AND p.status = $%d", len(args)+1)
-			args = append(args, filter.Status)
 		}
 		if filter.PriceMin != nil {
 			where += fmt.Sprintf(` AND EXISTS (
