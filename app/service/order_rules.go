@@ -180,7 +180,11 @@ func decreasedStock(product *model.Product, qty int) (*model.Product, error) {
 // Per store
 func groupItemPerStore(items []*model.ProductToBeGrouped, customerID int) []model.Order {
 	var orders []model.Order
+
 	perStore := make(map[int][]model.ProductToBeGrouped)
+	for _, product := range items {
+		perStore[product.StoreID] = append(perStore[product.StoreID], *product)
+	}
 
 	storeIDs := make([]int, 0, len(perStore))
 	for storeID := range perStore {
@@ -188,10 +192,6 @@ func groupItemPerStore(items []*model.ProductToBeGrouped, customerID int) []mode
 	}
 
 	sort.Ints(storeIDs)
-
-	for _, product := range items {
-		perStore[product.StoreID] = append(perStore[product.StoreID], *product)
-	}
 
 	for _, storeID := range storeIDs {
 		items := perStore[storeID]

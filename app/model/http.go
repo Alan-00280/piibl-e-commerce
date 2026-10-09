@@ -34,6 +34,7 @@ type ListQuery struct {
 	*UserFilter
 	*StoreFilter
 	*ProductFilter
+	*OrderFilter
 }
 
 func (q ListQuery) Offset() int {

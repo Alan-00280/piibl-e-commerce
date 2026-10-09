@@ -36,6 +36,14 @@ type OrderItem struct {
 	Subtotal        int64  `json:"subtotal"`
 }
 
+type OrderFilter struct {
+	OrderStat *OrderStat
+}
+
+type OrderStatusUpdateReq struct {
+	Status OrderStat `json:"status" validate:"required,oneof=COMPLETED CANCELLED"`
+}
+
 // Each Purchased Products
 // With it's variant text
 type ProductToBeGrouped struct {
@@ -55,8 +63,38 @@ type CheckoutReq struct {
 
 type CheckoutItem struct {
 	ProductID  int   `json:"product_id" validate:"required,min=1"`
-	VariantIDs []int `json:"variant_ids" validate:"required,min=1,max=500,dive,min=1"` //variant_ids BELUM dibatasi jumlahnya dengan tiap elemen minimal 1
+	VariantIDs []int `json:"variant_ids,omitempty" validate:"omitempty,max=500,dive,min=1"`
 	Quantity   int   `json:"quantity" validate:"required,number,min=1,max=100000"`
+}
+
+type CheckoutProduct struct {
+	Product      Product
+	BasePrice    int64
+	HasBasePrice bool
+}
+
+type CheckoutResponse struct {
+	OrderGroupID int                     `json:"order_group_id"`
+	CreatedAt    time.Time               `json:"created_at"`
+	Orders       []CheckoutOrderResponse `json:"orders"`
+}
+
+type CheckoutOrderResponse struct {
+	OrderID int                         `json:"order_id"`
+	StoreID int                         `json:"store_id"`
+	Status  OrderStat                   `json:"status"`
+	Total   int64                       `json:"total"`
+	Items   []CheckoutOrderItemResponse `json:"items"`
+}
+
+type CheckoutOrderItemResponse struct {
+	ID          int    `json:"id"`
+	ProductID   int    `json:"product_id"`
+	ProductName string `json:"product_name"`
+	Variant     string `json:"variant"`
+	Price       int64  `json:"price"`
+	Quantity    int    `json:"quantity"`
+	Subtotal    int64  `json:"subtotal"`
 }
 
 // REVIEWS

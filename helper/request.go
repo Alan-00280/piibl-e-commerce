@@ -128,5 +128,24 @@ func ParseListQuery(c *fiber.Ctx) model.ListQuery {
 	}
 	q.ProductFilter = &productFilter
 
+	orderFilter := model.OrderFilter{}
+	if OrderStatStr := c.Query("order_status"); strings.TrimSpace(OrderStatStr) != "" {
+		var OrderStat model.OrderStat
+		switch {
+		case OrderStatStr == string(model.OrderStatusCreated):
+			OrderStat = model.OrderStatusCreated
+			orderFilter.OrderStat = &OrderStat
+		case OrderStatStr == string(model.OrderStatusCompleted):
+			OrderStat = model.OrderStatusCompleted
+			orderFilter.OrderStat = &OrderStat
+		case OrderStatStr == string(model.OrderStatusCancelled):
+			OrderStat = model.OrderStatusCancelled
+			orderFilter.OrderStat = &OrderStat
+		default:
+			orderFilter.OrderStat = nil
+		}
+	}
+	q.OrderFilter = &orderFilter
+
 	return q
 }
