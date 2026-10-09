@@ -19,11 +19,11 @@ func TestProductVariantSpaceCreateValidation(t *testing.T) {
 	}{
 		{
 			name: "valid mandatory variant space",
-			req:  model.ProductVariantSpaceCreateReq{ProductID: 1, Name: "Ukuran Produk", IsMandatory: &mandatory},
+			req:  model.ProductVariantSpaceCreateReq{ Name: "Ukuran Produk", IsMandatory: &mandatory},
 		},
 		{
 			name: "valid optional variant space",
-			req:  model.ProductVariantSpaceCreateReq{ProductID: 1, Name: "Ukuran Produk", IsMandatory: &optional},
+			req:  model.ProductVariantSpaceCreateReq{ Name: "Ukuran Produk", IsMandatory: &optional},
 		},
 		{
 			name:    "product ID must be positive",
@@ -32,22 +32,22 @@ func TestProductVariantSpaceCreateValidation(t *testing.T) {
 		},
 		{
 			name:    "name is required",
-			req:     model.ProductVariantSpaceCreateReq{ProductID: 1, IsMandatory: &mandatory},
+			req:     model.ProductVariantSpaceCreateReq{ IsMandatory: &mandatory},
 			wantErr: "name",
 		},
 		{
 			name:    "name must be at least three characters",
-			req:     model.ProductVariantSpaceCreateReq{ProductID: 1, Name: "AB", IsMandatory: &mandatory},
+			req:     model.ProductVariantSpaceCreateReq{ Name: "AB", IsMandatory: &mandatory},
 			wantErr: "name",
 		},
 		{
 			name:    "name cannot contain punctuation",
-			req:     model.ProductVariantSpaceCreateReq{ProductID: 1, Name: "Ukuran!", IsMandatory: &mandatory},
+			req:     model.ProductVariantSpaceCreateReq{ Name: "Ukuran!", IsMandatory: &mandatory},
 			wantErr: "name",
 		},
 		{
 			name:    "mandatory flag is required",
-			req:     model.ProductVariantSpaceCreateReq{ProductID: 1, Name: "Ukuran Produk"},
+			req:     model.ProductVariantSpaceCreateReq{ Name: "Ukuran Produk"},
 			wantErr: "is_mandatory",
 		},
 	}
@@ -129,44 +129,44 @@ func TestProductVariantCreateValidation(t *testing.T) {
 	}{
 		{
 			name: "valid variant without space or price adjustment",
-			req:  model.ProductVariantCreateReq{ProductID: 1, ProductVariantItems: model.ProductVariantItem{Name: "Large"}},
+			req:  model.ProductVariantCreateReq{ ProductVariantItems: []model.ProductVariantItem{{Name: "Large"}}},
 		},
 		{
 			name: "valid variant with space and price adjustment",
 			req: model.ProductVariantCreateReq{
-				ProductID: 1, VariantSpaceID: &spaceID,
-				ProductVariantItems: model.ProductVariantItem{Name: "Large", PriceAdjusment: &minAdjustment},
+				 VariantSpaceID: &spaceID,
+				ProductVariantItems: []model.ProductVariantItem{{Name: "Large", PriceAdjusment: &minAdjustment}},
 			},
 		},
 		{
 			name: "maximum price adjustment is valid",
 			req: model.ProductVariantCreateReq{
 				ProductID:           1,
-				ProductVariantItems: model.ProductVariantItem{Name: "Large", PriceAdjusment: &maxAdjustment},
+				ProductVariantItems: []model.ProductVariantItem{{Name: "Large", PriceAdjusment: &maxAdjustment}},
 			},
 		},
 		{
 			name:    "product ID must be positive",
-			req:     model.ProductVariantCreateReq{ProductVariantItems: model.ProductVariantItem{Name: "Large"}},
+			req:     model.ProductVariantCreateReq{ProductVariantItems: []model.ProductVariantItem{{Name: "Large"}}},
 			wantErr: "product_id",
 		},
 		{
 			name: "variant space ID must be positive when provided",
 			req: model.ProductVariantCreateReq{
-				ProductID: 1, VariantSpaceID: &zeroSpaceID,
-				ProductVariantItems: model.ProductVariantItem{Name: "Large"},
+				 VariantSpaceID: &zeroSpaceID,
+				ProductVariantItems: []model.ProductVariantItem{{Name: "Large"}},
 			},
 			wantErr: "space_id",
 		},
 		{
 			name:    "variant name is required",
-			req:     model.ProductVariantCreateReq{ProductID: 1},
+			req:     model.ProductVariantCreateReq{ ProductVariantItems: []model.ProductVariantItem{{}}},
 			wantErr: "name",
 		},
 		{
 			name: "variant name must be at least three characters",
 			req: model.ProductVariantCreateReq{
-				ProductID: 1, ProductVariantItems: model.ProductVariantItem{Name: "AB"},
+				 ProductVariantItems: []model.ProductVariantItem{{Name: "AB"}},
 			},
 			wantErr: "name",
 		},
@@ -174,7 +174,7 @@ func TestProductVariantCreateValidation(t *testing.T) {
 			name: "price adjustment cannot be below minimum",
 			req: model.ProductVariantCreateReq{
 				ProductID:           1,
-				ProductVariantItems: model.ProductVariantItem{Name: "Large", PriceAdjusment: &tooSmallAdjustment},
+				ProductVariantItems: []model.ProductVariantItem{{Name: "Large", PriceAdjusment: &tooSmallAdjustment}},
 			},
 			wantErr: "price_adjustment",
 		},
@@ -182,7 +182,7 @@ func TestProductVariantCreateValidation(t *testing.T) {
 			name: "price adjustment cannot exceed maximum",
 			req: model.ProductVariantCreateReq{
 				ProductID:           1,
-				ProductVariantItems: model.ProductVariantItem{Name: "Large", PriceAdjusment: &tooLargeAdjustment},
+				ProductVariantItems: []model.ProductVariantItem{{Name: "Large", PriceAdjusment: &tooLargeAdjustment}},
 			},
 			wantErr: "price_adjustment",
 		},
@@ -191,6 +191,16 @@ func TestProductVariantCreateValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := helper.ValidateStruct(tt.req, *validator)
+			if len(tt.req.ProductVariantItems) > 0 {
+				if itemErrors := helper.ValidateStruct(tt.req.ProductVariantItems[0], *validator); len(itemErrors) > 0 {
+					if got == nil {
+						got = make(map[string]string)
+					}
+					for field, message := range itemErrors {
+						got[field] = message
+					}
+				}
+			}
 			if tt.wantErr == "" {
 				if len(got) != 0 {
 					t.Errorf("ValidateStruct() errors = %v, want no errors", got)

@@ -13,20 +13,20 @@ type User struct {
 }
 
 type CreateUserReq struct {
-	Username string `json:"username" validate:"required,min=3,max=30,alphanum"`
+	Username string `json:"username" validate:"required,min=3,max=30,alphanum,nospace"`
 	Email    string `json:"email" validate:"required,email,max=120"`
 	Password string `json:"password" validate:"required,min=8,max=72,strongpassword"`
 	Role     Role   `json:"role" validate:"required,role"`
 }
 
 type ReplaceUserRequest struct {
-	Username string `json:"username" validate:"required,min=3,max=30,alphanum"`
+	Username string `json:"username" validate:"required,min=3,max=30,alphanum,nospace"`
 	Email    string `json:"email" validate:"required,email,max=120"`
 	IsActive bool   `json:"is_active"`
 }
 
 type PatchUserRequest struct {
-	Username *string `json:"username,omitempty" validate:"omitnil,min=3,max=30,alphanum"`
+	Username *string `json:"username,omitempty" validate:"omitnil,min=3,max=30,alphanum,nospace"`
 	Email    *string `json:"email,omitempty" validate:"omitnil,email,max=120"`
 	IsActive *bool   `json:"is_active,omitempty"`
 }

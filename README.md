@@ -1,141 +1,199 @@
 # PiiBL E-Commerce REST API
 
-REST API untuk sistem E-Commerce multi-store yang memungkinkan Customer membeli produk dari berbagai Store, sementara Tenant dapat mengelola Store, produk, variant, dan stok.
+REST API e-commerce multi-store berbasis Go. Customer dapat checkout produk dari beberapa toko dalam satu transaksi; Tenant mengelola toko, katalog, varian, stok, dan pesanan tokonya. Proyek ini dikembangkan sebagai tugas kuliah Backend Lanjut.
 
-Nama PiiBL diambil dari PBL yang dimana jika dalam bahasa inggris di *prounounce* menjadi *\pibiel\\*
+## Fitur
 
-> Project ini dibuat sebagai tugas kuliah.
+- Registrasi, login, JWT access token, refresh token, dan kontrol akses berbasis role/permission.
+- Katalog toko dan produk, termasuk variant space dan product variant.
+- Checkout multi-store tanpa cart persisten di backend.
+- Validasi varian dan perhitungan harga di server.
+- Pengurangan stok atomik dan penyimpanan order dalam satu transaksi database.
+- Daftar order dengan filter status dan ekspor CSV; akses dibatasi sesuai kepemilikan.
+- Snapshot `OrderItem` menjaga detail pembelian dari perubahan katalog di kemudian hari.
 
-## Features
+## Arsitektur
 
-* Guest dapat melihat produk, kategori, dan Store.
-* Customer dapat melakukan checkout tanpa Cart yang tersimpan di backend.
-* Customer dapat membeli produk dari beberapa Store dalam satu checkout.
-* Tenant dapat memiliki maksimal satu Store.
-* Tenant dapat mengelola Product, Product Variant, dan stok.
-* Product memiliki satu stok utama yang tidak bergantung pada variant.
-* Harga dihitung oleh backend berdasarkan variant yang dipilih.
-* Seluruh transaksi menggunakan mata uang IDR.
-* Order memiliki status `CREATED`, `COMPLETED`, dan `CANCELLED`.
-* OrderItem disimpan sebagai immutable transaction record.
-* Customer dapat memberikan satu review untuk setiap Product yang pernah dibeli.
-* Review yang dikirim kembali untuk Product yang sama akan memperbarui review sebelumnya.
-* Pembatalan Order tidak mengembalikan stok secara otomatis.
+Struktur proyek menerapkan pemisahan layer bergaya Clean Architecture: handler HTTP bergantung pada service, service menggunakan model/domain rules dan kontrak repository, sedangkan implementasi repository menangani PostgreSQL.
+
+```mermaid
+flowchart TB
+    Client[Client]
+
+    subgraph Presentation["Presentation / Interface"]
+        Routes["routes<br/>Fiber endpoints"]
+        Middleware["middleware<br/>Auth, permission, rate limit"]
+    end
+
+    subgraph Application["Application"]
+        Services["app/service<br/>Use cases & orchestration"]
+    end
+
+    subgraph Domain["Domain"]
+        Models["app/model<br/>Entities, DTOs, enums"]
+        Rules["app/service/*_rules.go<br/>Business rules"]
+    end
+
+    subgraph Infrastructure["Infrastructure"]
+        Repositories["app/repository<br/>Repository contracts & PostgreSQL"]
+        Pool["database<br/>pgxpool"]
+        PostgreSQL[(PostgreSQL)]
+    end
+
+    Helpers["helper<br/>Validation, JWT, responses"]
+    Bootstrap["main.go<br/>Dependency wiring"]
+
+    Client --> Routes
+    Routes --> Middleware
+    Middleware --> Services
+    Routes --> Services
+    Services --> Models
+    Services --> Rules
+    Services --> Repositories
+    Services --> Helpers
+    Repositories --> Models
+    Repositories --> Pool
+    Pool --> PostgreSQL
+    Bootstrap -. configures .-> Routes
+    Bootstrap -. injects dependencies .-> Services
+    Bootstrap -. creates .-> Repositories
+```
+
+### Struktur Direktori
+
+| Path | Tanggung jawab |
+|---|---|
+| `app/model/` | Entity, request/response model, enum, dan tipe domain |
+| `app/service/` | Use case HTTP, orkestrasi, validasi kepemilikan, serta aturan domain |
+| `app/repository/` | Kontrak repository dan query/transaksi PostgreSQL |
+| `routes/` | Pendaftaran endpoint dan middleware per endpoint |
+| `middleware/` | Autentikasi, permission, rate limiter, dan middleware umum |
+| `helper/` | Validator, JWT, parsing query, negosiasi format, dan response/error |
+| `database/` | Pembuatan dan pengelolaan connection pool PostgreSQL |
+| `migrations/` | Skema dan perubahan database SQL berurutan |
 
 ## Roles
 
-### Guest
+| Role | Akses utama |
+|---|---|
+| Guest | Melihat toko dan produk aktif |
+| Customer | Checkout serta melihat order dan review yang menjadi haknya |
+| Tenant | Mengelola satu toko, katalog, stok, dan order tokonya |
+| Admin | Operasi administratif sesuai permission yang diberikan |
 
-* Melihat daftar produk.
-* Melihat detail produk.
-* Melihat kategori dan Store.
+## Aturan Produk dan Checkout
 
-### Customer
+- Setiap produk memiliki variant khusus `_default` sebagai harga dasar.
+- Harga akhir dihitung sebagai `harga dasar + adjustment` semua varian yang dipilih; harga minimum adalah IDR 100.
+- Setiap variant space wajib hanya mengizinkan satu pilihan. Semua space wajib harus dipilih saat checkout.
+- Stok disimpan di produk, bukan di kombinasi varian.
+- Checkout menggabungkan item berdasarkan toko dan membuat satu order per toko.
+- Update stok dan pembuatan order memakai satu transaksi; kuantitas per produk dikunci secara kondisional untuk mencegah overselling.
+- Status order dimulai dari `CREATED`; Tenant pemilik toko dapat mengubahnya ke `COMPLETED` atau `CANCELLED`. Kedua status akhir bersifat terminal.
+- Pembatalan tidak mengembalikan stok secara otomatis.
 
-* Melakukan checkout.
-* Melihat pesanan.
-* Membatalkan pesanan.
-* Melihat riwayat pesanan.
-* Memberikan dan memperbarui review produk yang pernah dibeli.
+Seluruh nominal disimpan sebagai integer dalam IDR, misalnya `50000` berarti Rp50.000. Cart tidak disimpan oleh backend; klien mengirim item checkout langsung.
 
-### Tenant
+## Teknologi
 
-* Memiliki maksimal satu Store.
-* Mengelola Store.
-* Mengelola Product dan Product Variant.
-* Mengelola stok.
-* Melihat pesanan yang masuk ke Store.
+- Go 1.26.5 dan Fiber v2
+- PostgreSQL melalui `pgx`/`pgxpool`
+- JWT, bcrypt, dan `go-playground/validator`
 
-## Product & Variant
+## Menjalankan Secara Lokal
 
-Setiap Product memiliki satu Product Variant khusus bernama `_default`.
+1. Siapkan Go dan PostgreSQL.
+2. Buat database, lalu terapkan file `migrations/*.sql` berurutan menurut nomor. Migration dijalankan terpisah dan tidak diterapkan otomatis saat aplikasi mulai.
+3. Salin `.env.example` menjadi `.env`, lalu isi konfigurasi database dan JWT. `JWT_SECRET` harus sekurangnya 32 karakter; jangan gunakan secret contoh di luar lingkungan lokal.
+4. Pastikan file password umum tersedia pada `PW_COMMON_PATH` (default: `./files/common_password.txt`).
+5. Jalankan aplikasi:
 
-Stok hanya disimpan pada level Product dan tidak bergantung pada variant.
+   ```sh
+   go run .
+   ```
 
-Harga mengikuti aturan:
+Port bawaan adalah `3000`. Health check: `GET /api/v1/health`.
 
-* Tidak memilih variant → menggunakan harga `_default`.
-* Memilih variant → harga merupakan total harga seluruh variant yang dipilih.
-* Harga `_default` tidak ikut dihitung jika terdapat variant yang dipilih.
+Contoh isi `.env` untuk pengembangan lokal:
 
-Contoh:
+```dotenv
+APP_NAME="piibl-e-commerce"
+APP_PORT=3000
 
-```text
-_default = 50.000
-Merah    = 5.000
-Ukuran M = 10.000
+PW_COMMON_PATH="./files/common_password.txt"
 
-Merah + M = 15.000
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=change-me
+DB_NAME=piibl_ecommerce
+DB_SSLMODE=disable
+DB_MAX_CONNS=10
+
+LOG_LEVEL=info
+
+# Ganti dengan secret acak minimal 32 karakter.
+JWT_SECRET="replace-with-a-random-secret-of-at-least-32-chars"
+JWT_ISSUER="piibl-e-commerce"
+JWT_ACCESS_TTL_MINUTES=15
+JWT_REFRESH_TTL_DAYS=7
+
+ALLOWED_ORIGINS="http://localhost:5173"
 ```
 
-## Order
+### Konfigurasi Lingkungan
 
-Customer tidak memiliki Cart yang disimpan di backend. Item checkout dikirim langsung ke API dan seluruh perhitungan dilakukan oleh backend.
+| Variable | Fungsi |
+|---|---|
+| `APP_PORT` | Port HTTP, default `3000` |
+| `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | Koneksi PostgreSQL |
+| `DB_SSLMODE`, `DB_MAX_CONNS` | SSL dan batas koneksi pool |
+| `JWT_SECRET`, `JWT_ISSUER` | Penandatanganan dan issuer token |
+| `JWT_ACCESS_TTL_MINUTES`, `JWT_REFRESH_TTL_DAYS` | Masa berlaku token |
+| `PW_COMMON_PATH` | Daftar password umum untuk validasi |
+| `ALLOWED_ORIGINS` | Origin yang diizinkan CORS |
+| `LOG_LEVEL` | Level logging |
 
-Order memiliki tiga status:
+Verifikasi lokal:
 
-```text
-CREATED
-COMPLETED
-CANCELLED
+```sh
+go build ./...
+go test ./...
 ```
 
-`OrderItem` merupakan immutable record yang menyimpan informasi transaksi pada saat pembelian, seperti:
+## Ringkasan Endpoint
 
-* Product name
-* Variant
-* Price
-* Quantity
-* Subtotal
+Semua endpoint berada di bawah `/api/v1`. Endpoint terlindungi menerima:
+`Authorization: Bearer <access-token>`.
 
-OrderItem tidak bergantung pada Product atau Product Variant setelah transaksi dibuat, sehingga perubahan katalog tidak mengubah riwayat pesanan.
+| Area | Endpoint utama |
+|---|---|
+| Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me` |
+| Users | `/users` dan `/users/:id` untuk operasi akun/role sesuai permission |
+| Stores | `/stores`, `/stores/:id`, `GET /my/stores` |
+| Products | `/products`, `/products/:id`, `GET /my/products`, `PATCH /products/:id/stock`, `PATCH /products/:id/price` |
+| Variant spaces | `POST /products/:id/variant-spaces`, `PATCH/DELETE /variant-spaces/:id` |
+| Variants | `POST /variants`, `PATCH/DELETE /variants/:id` |
+| Orders | `POST /orders/checkout`, `GET /orders`, `GET /orders/:id`, `PATCH /orders/:id/status` |
 
-## Review
+Daftar endpoint order hanya menampilkan order milik Customer yang login atau order dari toko Tenant yang login. `GET /orders` mendukung `order_status`, pagination `page`/`limit`, serta `Accept: text/csv`; format default adalah JSON.
 
-Customer hanya dapat memberikan review terhadap Product yang pernah dibeli.
+Respons JSON menggunakan envelope umum:
 
-Satu Customer hanya memiliki satu review untuk satu Product. Jika Customer mengirim review kembali untuk Product yang sama, review sebelumnya akan diperbarui.
-
-## Out of Scope
-
-Fitur berikut tidak termasuk dalam scope project:
-
-* Payment
-* Address
-* Shipping dan tracking
-* Return/refund
-* Customer–Tenant chat
-* Image upload/storage
-* Notification system
-* Persistent Cart
-* Idempotency
-
-## Currency
-
-Seluruh harga dan transaksi menggunakan:
-
-```text
-IDR (Indonesian Rupiah)
+```json
+{
+  "success": true,
+  "message": "Pesan hasil operasi",
+  "data": {}
+}
 ```
 
-Nilai uang direpresentasikan menggunakan integer, misalnya:
+Dokumentasi request, response, permission, dan kode status per endpoint tersedia di [laporan proyek](logs/laporan_project.md).
 
-```text
-50000 = Rp50.000
-```
+## Di Luar Cakupan
 
-## API
+Payment gateway, alamat dan pengiriman, retur/refund, chat, penyimpanan gambar, notifikasi, persistent cart, dan idempotensi belum termasuk.
 
-API menggunakan arsitektur REST dan akan menggunakan versioning:
+## Status
 
-```text
-/api/v1
-```
-
-Dokumentasi endpoint akan ditambahkan seiring implementasi project.
-
-## Project Status
-
-🚧 **In Development**
-
-Project ini sedang dalam tahap pengembangan dan struktur API/database dapat berubah selama proses implementasi.
+✅ **Selesai untuk ruang lingkup saat ini** — proyek telah menyelesaikan kebutuhan yang ditetapkan, namun tetap terbuka untuk pengembangan dan penyempurnaan lebih lanjut.

@@ -11,6 +11,9 @@ import (
 var allowedSort = map[string]bool{
 	"id":       true,
 	"username": true,
+	"name":     true,
+	"price":    true,
+	"rating":   true,
 }
 
 func ParamID(c *fiber.Ctx) (int, bool) {
@@ -22,12 +25,15 @@ func ParamID(c *fiber.Ctx) (int, bool) {
 }
 
 func ParseListQuery(c *fiber.Ctx) model.ListQuery {
+	trueActive := true
+
 	q := model.ListQuery{
-		Page:   c.QueryInt("page"),
-		Limit:  c.QueryInt("limit"),
-		Search: strings.TrimSpace(c.Query("search")),
-		Sort:   c.Query("sort", "id"),
-		Order:  strings.ToLower(c.Query("order", "asc")),
+		Page:     c.QueryInt("page"),
+		Limit:    c.QueryInt("limit"),
+		Search:   strings.TrimSpace(c.Query("search")),
+		Sort:     c.Query("sort", "id"),
+		Order:    strings.ToLower(c.Query("order", "asc")),
+		IsActive: &trueActive,
 	}
 
 	if q.Page < 1 {
@@ -48,7 +54,7 @@ func ParseListQuery(c *fiber.Ctx) model.ListQuery {
 		q.Order = "asc"
 	}
 
-	if raw := c.Query("is_active"); raw != "" {
+	if raw := c.Query("is_active"); strings.TrimSpace(raw) != "" {
 		if v, err := strconv.ParseBool(raw); err == nil {
 			q.IsActive = &v
 		}
@@ -62,8 +68,204 @@ func ParseListQuery(c *fiber.Ctx) model.ListQuery {
 			userFilter.Role = role
 		}
 	}
-
 	q.UserFilter = &userFilter
+
+	storesFilter := model.StoreFilter{}
+	if tenantID := c.Query("tenant_id"); strings.TrimSpace(tenantID) != "" {
+		if v, err := strconv.Atoi(tenantID); err == nil && v > 0 {
+			storesFilter.TenantID = &v
+		}
+	}
+	q.StoreFilter = &storesFilter
+
+	productFilter := model.ProductFilter{
+		Status: model.ProductStatActive,
+	}
+	if StoreID := c.Query("store_id"); strings.TrimSpace(StoreID) != "" {
+		if v, err := strconv.Atoi(StoreID); err == nil && v > 0 {
+			productFilter.StoreID = &v
+		}
+	}
+	if CategoryID := c.Query("category"); strings.TrimSpace(CategoryID) != "" {
+		if v, err := strconv.Atoi(CategoryID); err == nil && v > 0 {
+			productFilter.CategoryID = &v
+		}
+	}
+	if MaxPrice := c.Query("maxprice"); strings.TrimSpace(MaxPrice) != "" {
+		if v, err := strconv.ParseInt(MaxPrice, 10, 64); err == nil && v > 0 {
+			productFilter.PriceMax = &v
+		}
+	}
+	if MinPrice := c.Query("minprice"); strings.TrimSpace(MinPrice) != "" {
+		if v, err := strconv.ParseInt(MinPrice, 10, 64); err == nil && v > 0 {
+			productFilter.PriceMin = &v
+		} else {
+			var zeroInt64 int64
+			zeroInt64 = int64(0)
+			productFilter.PriceMin = &zeroInt64
+		}
+	}
+	if RatingMax := c.Query("maxrate"); strings.TrimSpace(RatingMax) != "" {
+		if v, err := strconv.ParseFloat(RatingMax, 64); err == nil && v > 0 {
+			productFilter.MaxRating = &v
+		}
+	}
+	if RatingMin := c.Query("minrate"); strings.TrimSpace(RatingMin) != "" {
+		if v, err := strconv.ParseFloat(RatingMin, 64); err == nil && v > 0 {
+			productFilter.MinRating = &v
+		}
+	}
+	ProductStatus := c.Query("product_stat")
+	if ProductStatus = strings.ToUpper(strings.TrimSpace(ProductStatus)); ProductStatus != "" {
+		switch {
+		case ProductStatus == string(model.ProductStatActive):
+			productFilter.Status = model.ProductStatActive
+		case ProductStatus == string(model.ProductStatInactive):
+			productFilter.Status = model.ProductStatInactive
+		default:
+			productFilter.Status = model.ProductStatActive
+		}
+	}
+	q.ProductFilter = &productFilter
+
+	orderFilter := model.OrderFilter{}
+	if OrderStatStr := c.Query("order_status"); strings.TrimSpace(OrderStatStr) != "" {
+		var OrderStat model.OrderStat
+		switch {
+		case OrderStatStr == string(model.OrderStatusCreated):
+			OrderStat = model.OrderStatusCreated
+			orderFilter.OrderStat = &OrderStat
+		case OrderStatStr == string(model.OrderStatusCompleted):
+			OrderStat = model.OrderStatusCompleted
+			orderFilter.OrderStat = &OrderStat
+		case OrderStatStr == string(model.OrderStatusCancelled):
+			OrderStat = model.OrderStatusCancelled
+			orderFilter.OrderStat = &OrderStat
+		default:
+			orderFilter.OrderStat = nil
+		}
+	}
+	q.OrderFilter = &orderFilter
 
 	return q
 }
+
+func ParseCursorQuery(c *fiber.Ctx) model.CursorQuery {
+	limit := c.QueryInt("limit", 10)
+	if limit < 1 {
+		limit = 10
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	trueActive := true
+	q := model.CursorQuery{
+		Search:   strings.TrimSpace(c.Query("search")),
+		Limit:    limit,
+		IsActive: &trueActive,
+	}
+
+	if raw := c.Query("is_active"); strings.TrimSpace(raw) != "" {
+		if v, err := strconv.ParseBool(raw); err == nil {
+			q.IsActive = &v
+		}
+	}
+
+	userFilter := model.UserFilter{
+		Role: "",
+	}
+	if roleFilter := c.Query("role"); strings.TrimSpace(roleFilter) != "" {
+		if role, valid := RoleOf(strings.ToUpper(roleFilter)); valid && role != model.RoleAdmin {
+			userFilter.Role = role
+		}
+	}
+	q.UserFilter = &userFilter
+
+	storesFilter := model.StoreFilter{}
+	if tenantID := c.Query("tenant_id"); strings.TrimSpace(tenantID) != "" {
+		if v, err := strconv.Atoi(tenantID); err == nil && v > 0 {
+			storesFilter.TenantID = &v
+		}
+	}
+	q.StoreFilter = &storesFilter
+
+	productFilter := model.ProductFilter{
+		Status: model.ProductStatActive,
+	}
+	if StoreID := c.Query("store_id"); strings.TrimSpace(StoreID) != "" {
+		if v, err := strconv.Atoi(StoreID); err == nil && v > 0 {
+			productFilter.StoreID = &v
+		}
+	}
+	if CategoryID := c.Query("category"); strings.TrimSpace(CategoryID) != "" {
+		if v, err := strconv.Atoi(CategoryID); err == nil && v > 0 {
+			productFilter.CategoryID = &v
+		}
+	}
+	if MaxPrice := c.Query("maxprice"); strings.TrimSpace(MaxPrice) != "" {
+		if v, err := strconv.ParseInt(MaxPrice, 10, 64); err == nil && v > 0 {
+			productFilter.PriceMax = &v
+		}
+	}
+	if MinPrice := c.Query("minprice"); strings.TrimSpace(MinPrice) != "" {
+		if v, err := strconv.ParseInt(MinPrice, 10, 64); err == nil && v > 0 {
+			productFilter.PriceMin = &v
+		} else {
+			var zeroInt64 int64
+			zeroInt64 = int64(0)
+			productFilter.PriceMin = &zeroInt64
+		}
+	}
+	if RatingMax := c.Query("maxrate"); strings.TrimSpace(RatingMax) != "" {
+		if v, err := strconv.ParseFloat(RatingMax, 64); err == nil && v > 0 {
+			productFilter.MaxRating = &v
+		}
+	}
+	if RatingMin := c.Query("minrate"); strings.TrimSpace(RatingMin) != "" {
+		if v, err := strconv.ParseFloat(RatingMin, 64); err == nil && v > 0 {
+			productFilter.MinRating = &v
+		}
+	}
+	ProductStatus := c.Query("product_stat")
+	if ProductStatus = strings.ToUpper(strings.TrimSpace(ProductStatus)); ProductStatus != "" {
+		switch {
+		case ProductStatus == string(model.ProductStatActive):
+			productFilter.Status = model.ProductStatActive
+		case ProductStatus == string(model.ProductStatInactive):
+			productFilter.Status = model.ProductStatInactive
+		default:
+			productFilter.Status = model.ProductStatActive
+		}
+	}
+	q.ProductFilter = &productFilter
+
+	orderFilter := model.OrderFilter{}
+	if OrderStatStr := c.Query("order_status"); strings.TrimSpace(OrderStatStr) != "" {
+		var OrderStat model.OrderStat
+		switch {
+		case OrderStatStr == string(model.OrderStatusCreated):
+			OrderStat = model.OrderStatusCreated
+			orderFilter.OrderStat = &OrderStat
+		case OrderStatStr == string(model.OrderStatusCompleted):
+			OrderStat = model.OrderStatusCompleted
+			orderFilter.OrderStat = &OrderStat
+		case OrderStatStr == string(model.OrderStatusCancelled):
+			OrderStat = model.OrderStatusCancelled
+			orderFilter.OrderStat = &OrderStat
+		default:
+			orderFilter.OrderStat = nil
+		}
+	}
+	q.OrderFilter = &orderFilter
+
+	if encodedCursor := strings.TrimSpace(c.Query("cursor")); encodedCursor != "" {
+		decoded, err := DecodeCursor(encodedCursor)
+		if err == nil {
+			q.After = &decoded
+		}
+	}
+
+	return q
+}
+

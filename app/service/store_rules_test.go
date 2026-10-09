@@ -17,41 +17,36 @@ func TestCreateStoreValidation(t *testing.T) {
 	}{
 		{
 			name: "valid store",
-			req:  model.CreateStoresReq{OwnerID: 1, Name: "Toko Sejahtera 99", Description: "Produk kebutuhan sehari-hari"},
-		},
-		{
-			name:    "owner is required",
-			req:     model.CreateStoresReq{Name: "Toko Sejahtera", Description: "Produk kebutuhan sehari-hari"},
-			wantErr: "owner_id",
-		},
-		{
-			name:    "owner must be positive",
-			req:     model.CreateStoresReq{OwnerID: 0, Name: "Toko Sejahtera", Description: "Produk kebutuhan sehari-hari"},
-			wantErr: "owner_id",
+			req:  model.CreateStoresReq{Name: "Toko Sejahtera 99", Description: "Produk kebutuhan sehari-hari"},
 		},
 		{
 			name:    "name is required",
-			req:     model.CreateStoresReq{OwnerID: 1, Description: "Produk kebutuhan sehari-hari"},
+			req:     model.CreateStoresReq{Description: "Produk kebutuhan sehari-hari"},
 			wantErr: "name",
 		},
 		{
 			name:    "name is too short",
-			req:     model.CreateStoresReq{OwnerID: 1, Name: "AB", Description: "Produk kebutuhan sehari-hari"},
+			req:     model.CreateStoresReq{Name: "AB", Description: "Produk kebutuhan sehari-hari"},
 			wantErr: "name",
 		},
 		{
 			name:    "name cannot contain punctuation",
-			req:     model.CreateStoresReq{OwnerID: 1, Name: "Toko!", Description: "Produk kebutuhan sehari-hari"},
+			req:     model.CreateStoresReq{Name: "Toko!", Description: "Produk kebutuhan sehari-hari"},
+			wantErr: "name",
+		},
+		{
+			name:    "name is too long",
+			req:     model.CreateStoresReq{Name: "Toko Sejahtera dengan Nama yang Lebih dari Empat Puluh Lima Karakter", Description: "Produk kebutuhan sehari-hari"},
 			wantErr: "name",
 		},
 		{
 			name:    "description is required",
-			req:     model.CreateStoresReq{OwnerID: 1, Name: "Toko Sejahtera"},
+			req:     model.CreateStoresReq{Name: "Toko Sejahtera"},
 			wantErr: "description",
 		},
 		{
 			name:    "description is too short",
-			req:     model.CreateStoresReq{OwnerID: 1, Name: "Toko Sejahtera", Description: "AB"},
+			req:     model.CreateStoresReq{Name: "Toko Sejahtera", Description: "AB"},
 			wantErr: "description",
 		},
 	}

@@ -4,21 +4,22 @@ import "time"
 
 // PRODUCTS
 type Product struct {
-	ID          int         `json:"id"`
-	StoreID     int         `json:"store_id"`
-	CategoryID  int         `json:"category_id"`
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	Stock       int         `json:"stock"`
-	Status      ProductStat `json:"status"`
-	CreatedAt   time.Time   `json:"created_at"`
+	ID            int         `json:"id"`
+	StoreID       int         `json:"store_id"`
+	CategoryID    int         `json:"category_id"`
+	Name          string      `json:"name"`
+	Description   string      `json:"description"`
+	Stock         int         `json:"stock"`
+	Status        ProductStat `json:"status"`
+	CreatedAt     time.Time   `json:"created_at"`
+	OverallRating float64     `json:"rating"`
 }
 
 type ProductCreateReq struct {
-	StoreID     int         `json:"store_id" validate:"required,number,min=1"`
-	CategoryID  int         `json:"category_id" validate:"required,number,min=1"`
+	CategoryID  *int        `json:"category_id,omitempty" validate:"omitnil,number,min=1"`
 	Name        string      `json:"name" validate:"required,min=3,max=100,alphanumspace"`
 	Description string      `json:"description" validate:"required,min=3,max=300"`
+	BasePrice   int64       `json:"base_price" validate:"required,min=100,max=1000000000"`
 	Stock       int         `json:"stock" validate:"number,min=0,max=100000"`
 	Status      ProductStat `json:"status" validate:"required"`
 }
@@ -27,7 +28,6 @@ type ProductPatchReq struct {
 	CategoryID  *int         `json:"category_id,omitempty" validate:"omitnil,number,min=1"`
 	Name        *string      `json:"name,omitempty" validate:"omitnil,min=3,max=100,alphanumspace"`
 	Description *string      `json:"description,omitempty" validate:"omitnil,min=3,max=300"`
-	Stock       *int         `json:"stock,omitempty" validate:"omitnil,number,min=0,max=100000"`
 	Status      *ProductStat `json:"status,omitempty" validate:"omitnil"`
 }
 
@@ -39,10 +39,22 @@ type ProductUpdateStockReq struct {
 	Stock int `json:"stock" validate:"number,min=0,max=100000"`
 }
 
-type ProductFilter struct {
-	StoreID    int
-	CategoryID int
+type ProductBasePriceReq struct {
+	Baseprice int64 `json:"base_price" validate:"required,number,min=100,max=1000000000"`
 }
+
+type ProductFilter struct {
+	StoreID    *int
+	CategoryID *int
+	Status     ProductStat
+	PriceMax   *int64
+	PriceMin   *int64
+	MaxRating  *float64
+	MinRating  *float64
+}
+
+// ProductCursorQuery merupakan alias untuk CursorQuery yang membawa ProductFilter
+type ProductCursorQuery = CursorQuery
 
 type ProductVariantSpaces struct {
 	ProductID     int
@@ -59,7 +71,6 @@ type ProductVariantSpace struct {
 }
 
 type ProductVariantSpaceCreateReq struct {
-	ProductID   int    `json:"product_id" validate:"required,number,min=1"`
 	Name        string `json:"name" validate:"required,min=3,max=20,alphanumspace"`
 	IsMandatory *bool  `json:"is_mandatory" validate:"required,boolean"`
 }
@@ -74,21 +85,21 @@ type ProductVariant struct {
 	ProductID      int    `json:"product_id"`
 	VariantSpaceID *int   `json:"space_id,omitempty"`
 	Name           string `json:"name"`
-	PriceAdjusment *int64 `json:"price,omitempty"`
+	PriceAdjusment *int64 `json:"price_adjustment,omitempty"`
 }
 
 type ProductVariantItem struct {
-	Name           string `json:"name" validate:"required,min=3,max=50"`
+	Name           string `json:"name" validate:"required,min=1,max=50"`
 	PriceAdjusment *int64 `json:"price_adjustment,omitempty" validate:"omitnil,number,min=-1000000000,max=100000000000"`
 }
 
 type ProductVariantCreateReq struct {
-	ProductID           int                `json:"product_id" validate:"required,number,min=1"`
-	VariantSpaceID      *int               `json:"space_id,omitempty" validate:"omitnil,number,min=1"`
-	ProductVariantItems ProductVariantItem `json:"product_variant_items"`
+	ProductID           int                  `json:"product_id" validate:"required,number,min=1"`
+	VariantSpaceID      *int                 `json:"space_id,omitempty" validate:"omitnil,number,min=1"`
+	ProductVariantItems []ProductVariantItem `json:"product_variant_items"`
 }
 
 type ProductVariantPatchReq struct {
 	Name           *string `json:"name,omitempty" validate:"omitnil,min=3,max=50"`
-	PriceAdjusment *int64  `json:"price,omitempty" validate:"omitnil,number,min=-100000000000,max=100000000000"`
+	PriceAdjusment *int64  `json:"price_adjustment,omitempty" validate:"omitnil,number,min=-100000000000,max=100000000000"`
 }

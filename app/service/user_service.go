@@ -83,7 +83,7 @@ func (h *UserService) Get(c *fiber.Ctx) error {
 		return helper.Unauthorized("can't verify your identity")
 	}
 
-	if !CanAccessUser(current, id, h.perms, "user:read:any") {
+	if !CanAccess(current, id, h.perms, "user:read:any") {
 		return helper.Forbidden("anda tidak memiliki hak untuk mengakses pengguna ini")
 	}
 
@@ -151,7 +151,7 @@ func (h *UserService) Replace(c *fiber.Ctx) error {
 		return helper.Unauthorized("can't verify your identity")
 	}
 
-	if !CanAccessUser(current, id, h.perms, "user:update:any") {
+	if !CanAccess(current, id, h.perms, "user:update:any") {
 		return helper.Forbidden("anda tidak dapat hak untuk menggantikan data pengguna ini")
 	}
 
@@ -195,7 +195,7 @@ func (h *UserService) Patch(c *fiber.Ctx) error {
 		return helper.Unauthorized("can't verify your identity")
 	}
 
-	if !CanAccessUser(current, id, h.perms, "user:update:any") {
+	if !CanAccess(current, id, h.perms, "user:update:any") {
 		return helper.Forbidden("anda tidak dapat hak untuk memperbarui data pengguna ini")
 	}
 
@@ -252,7 +252,7 @@ func (h *UserService) AssignRole(c *fiber.Ctx) error {
 
 	id, valid := helper.ParamID(c)
 	if !valid {
-		return helper.BadRequest("can't delete user: ID Invalid")
+		return helper.BadRequest("can't find user: ID Invalid")
 	}
 
 	var userAssignRole model.AssignRoleRequest
@@ -260,12 +260,17 @@ func (h *UserService) AssignRole(c *fiber.Ctx) error {
 		return helper.BadRequest("JSON invalid")
 	}
 
+	errs := helper.ValidateStruct(userAssignRole, *h.appValidator)
+	if len(errs) > 0 {
+		return helper.Validation(errs)
+	}
+
 	current, ok := helper.CurentUser(c)
 	if !ok {
 		return helper.Unauthorized("can't verify your identity")
 	}
 
-	errs := ValidateAssignRole(current, id, userAssignRole, h.perms)
+	errs = ValidateAssignRole(current, id, userAssignRole, h.perms)
 	if len(errs) > 0 {
 		return helper.Validation(errs)
 	}

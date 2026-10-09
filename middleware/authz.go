@@ -17,7 +17,7 @@ func RequirePermission(perms *helper.PermissionSet, permission string) fiber.Han
 			return helper.Unauthorized("belum terautentikasi")
 		}
 
-		if !perms.Can(user.Role, permission) {
+	if !perms.Can(user.Role, permission) {
 			return helper.Forbidden("user dengan role " + string(user.Role) + " tidak memiliki hak " + permission)
 		}
 
