@@ -49,3 +49,12 @@ func Fail(c *fiber.Ctx, status int, message string) error {
 func NoContent(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
+
+func SuccessCursor(c *fiber.Ctx, message string, rows any, meta *model.CursorMeta) error {
+	return c.Status(fiber.StatusOK).JSON(model.WebResponseCursor{
+		Success: true,
+		Message: message,
+		Data:    rows,
+		Meta:    meta,
+	})
+}

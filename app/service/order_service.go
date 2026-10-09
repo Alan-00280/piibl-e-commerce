@@ -12,14 +12,18 @@ import (
 )
 
 type OrderService struct {
-	repo         repository.OrderRepository
-	appValidator *helper.AppValidator
+	repo            repository.OrderRepository
+	storeRepository repository.StoreRepository
+	appValidator    *helper.AppValidator
+	permissionSet   *helper.PermissionSet
 }
 
-func NewOrderService(repo repository.OrderRepository, appValidator *helper.AppValidator) *OrderService {
+func NewOrderService(repo repository.OrderRepository, appValidator *helper.AppValidator, storeRepository repository.StoreRepository, permissionSet *helper.PermissionSet) *OrderService {
 	return &OrderService{
-		repo:         repo,
-		appValidator: appValidator,
+		repo:            repo,
+		storeRepository: storeRepository,
+		appValidator:    appValidator,
+		permissionSet:   permissionSet,
 	}
 }
 
@@ -29,6 +33,7 @@ func NewOrderService(repo repository.OrderRepository, appValidator *helper.AppVa
 // POST /orders/checkout
 //
 //		roles: customer
+//		perms: order:create
 //		desc: Service untuk menangani endpoint pemesanan (Checkout)
 //		main process:
 //			1. Validasi JSON Metadata
@@ -272,6 +277,15 @@ func (s *OrderService) Get(c *fiber.Ctx) error {
 		return translateErr(err, "order")
 	}
 
+	orderStore, err := s.storeRepository.FindByID(ctx, order.StoreID)
+	if err != nil {
+		return helper.NotFound("Store Tidak Ada")
+	}
+
+	if !CanAccess(currentUser, orderStore.TenantID, s.permissionSet, "order:read:any") && !CanAccess(currentUser, order.CustomerID, s.permissionSet, "order:read:any") {
+		return helper.Forbidden("Anda tidak mendapatkan hak atas order ini")
+	}
+
 	return helper.Ok(c, "berhasil mendapatkan detail order", order)
 }
 
@@ -292,6 +306,20 @@ func (s *OrderService) UpdateStatus(c *fiber.Ctx) error {
 		return err
 	}
 
+	order, err := s.repo.FindByID(ctx, orderID, currentUser)
+	if err != nil {
+		return translateErr(err, "order")
+	}
+
+	orderStore, err := s.storeRepository.FindByID(ctx, order.StoreID)
+	if err != nil {
+		return helper.NotFound("Store Tidak Ada")
+	}
+
+	if !CanAccess(currentUser, orderStore.TenantID, s.permissionSet, "order:complete:any") && CanAccess(currentUser, orderStore.TenantID, s.permissionSet, "order:cancel:any") {
+		return helper.Forbidden("anda tidak memiliki akses atas order ini")
+	}
+
 	var req model.OrderStatusUpdateReq
 	if err := c.BodyParser(&req); err != nil {
 		return helper.BadRequest("JSON invalid")
@@ -300,10 +328,6 @@ func (s *OrderService) UpdateStatus(c *fiber.Ctx) error {
 		return helper.Validation(errs)
 	}
 
-	order, err := s.repo.FindByID(ctx, orderID, currentUser)
-	if err != nil {
-		return translateErr(err, "order")
-	}
 	if message := checkChangeOrderStatus(order.Status, req.Status); message != "" {
 		return helper.Conflict(message)
 	}

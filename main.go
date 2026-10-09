@@ -97,6 +97,9 @@ func main() {
 	productRepo := repository.NewProductRepository(pool)
 	productService := service.NewProductService(productRepo, storeRepo, permissionSet, appValidator)
 
+	orderRepo := repository.NewOrderRepository(pool)
+	orderService := service.NewOrderService(orderRepo, appValidator, storeRepo, permissionSet)
+
 	// APP
 	deps := routes.Dependencies{
 		Pool:           pool,
@@ -106,6 +109,7 @@ func main() {
 		UserService:    userService,
 		StoreService:   storeService,
 		ProductService: productService,
+		OrderService:   orderService,
 	}
 
 	app := config.NewApp(logger, deps)

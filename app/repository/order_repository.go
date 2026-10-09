@@ -241,6 +241,8 @@ func buildFilterOrder(q model.ListQuery, currentUser model.AuthUser) (string, st
 	case model.RoleTenant:
 		from = " FROM orders o JOIN stores s ON s.id = o.store_id"
 		where = " WHERE s.tenant_id = $1"
+	case model.RoleAdmin:
+		from = " FROM orders o JOIN stores s ON s.id = o.store_id"
 	default:
 		return "", "", nil, fmt.Errorf("unsupported role for order listing: %s", currentUser.Role)
 	}

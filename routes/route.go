@@ -17,6 +17,7 @@ type Dependencies struct {
 	UserService    *service.UserService
 	StoreService   *service.StoreService
 	ProductService *service.ProductService
+	OrderService   *service.OrderService
 	JWT            *helper.JWTManager
 	Permission     *helper.PermissionSet
 }
@@ -79,8 +80,14 @@ func Register(app *fiber.App, deps Dependencies) {
 	api.Patch("/variants/:id", middleware.RequireJSON, middleware.RequireAuth(deps.JWT), deps.ProductService.PatchVariant)
 	api.Delete("/variants/:id", middleware.RequireAuth(deps.JWT), deps.ProductService.DeleteVariant)
 
-	// TODO reminder saja: Beri Limiter di endpoint Checkout
+	// CHECKOUT
+	order := api.Group("/orders", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
+	order.Post("/checkout", middleware.GeneralRateLimiter(), middleware.RequirePermission(permissions, "order:create"), deps.OrderService.Checkout)
 
+	// ORDERS
+	order.Get("/", deps.OrderService.ListAll)
+	order.Get("/:id", deps.OrderService.Get)
+	order.Patch("/:id/status", deps.OrderService.UpdateStatus)
 }
 
 func healthCheck(pool *pgxpool.Pool) fiber.Handler {

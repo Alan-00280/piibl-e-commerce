@@ -53,6 +53,9 @@ type ProductFilter struct {
 	MinRating  *float64
 }
 
+// ProductCursorQuery merupakan alias untuk CursorQuery yang membawa ProductFilter
+type ProductCursorQuery = CursorQuery
+
 type ProductVariantSpaces struct {
 	ProductID     int
 	VariantSpaces []ProductVariantSpace
@@ -86,7 +89,7 @@ type ProductVariant struct {
 }
 
 type ProductVariantItem struct {
-	Name           string `json:"name" validate:"required,min=3,max=50"`
+	Name           string `json:"name" validate:"required,min=1,max=50"`
 	PriceAdjusment *int64 `json:"price_adjustment,omitempty" validate:"omitnil,number,min=-1000000000,max=100000000000"`
 }
 

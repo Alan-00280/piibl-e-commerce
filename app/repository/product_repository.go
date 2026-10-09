@@ -18,7 +18,7 @@ type ProductBasePrice struct {
 type ProductRepository interface {
 	// Product
 	FindByID(ctx context.Context, id int) (ProductBasePrice, error)
-	FindAll(ctx context.Context, q model.ListQuery) ([]ProductBasePrice, int, error)
+	FindAll(ctx context.Context, q model.CursorQuery) ([]ProductBasePrice, error)
 	FindTenantIDByProductID(ctx context.Context, productID int) (int, error)
 	// FindByStoreID includes inactive products; callers must authorize the tenant and store ownership.
 	FindByStoreID(ctx context.Context, storeID int) ([]ProductBasePrice, error)
@@ -52,14 +52,6 @@ type productPostgresRepository struct {
 }
 
 var productColumns string = "p.id, p.store_id, p.category_id, p.name, COALESCE(p.description, ''), p.stock, p.status, p.created_at"
-
-var productSortColumn = map[string]string{
-	"id":         "p.id",
-	"name":       "p.name",
-	"price":      "base_price",
-	"rating":     "overall_rating",
-	"created_at": "p.created_at",
-}
 
 func NewProductRepository(pool *pgxpool.Pool) ProductRepository {
 	return &productPostgresRepository{
@@ -118,23 +110,14 @@ func (r *productPostgresRepository) FindTenantIDByProductID(ctx context.Context,
 	return tenantID, nil
 }
 
-func (r *productPostgresRepository) FindAll(ctx context.Context, q model.ListQuery) ([]ProductBasePrice, int, error) {
+func (r *productPostgresRepository) FindAll(ctx context.Context, q model.CursorQuery) ([]ProductBasePrice, error) {
 	where, args := buildFilterProduct(q)
 
-	var total int
-	if err := r.pool.QueryRow(ctx, "SELECT COUNT(*) FROM products p"+where, args...).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("[ERROR] count total products: %w", err)
+	limit := q.Limit
+	if limit < 1 {
+		limit = 10
 	}
-
-	direction := "ASC"
-	if q.Order == "desc" {
-		direction = "DESC"
-	}
-
-	sortCol := "p.id"
-	if col, ok := productSortColumn[q.Sort]; ok {
-		sortCol = col
-	}
+	args = append(args, limit+1)
 
 	sqlText := fmt.Sprintf(
 		`SELECT %s,
@@ -145,14 +128,13 @@ func (r *productPostgresRepository) FindAll(ctx context.Context, q model.ListQue
 			COALESCE((SELECT AVG(pr.rating)
 				FROM product_reviews pr
 				WHERE pr.product_id = p.id), 0) AS overall_rating
-			FROM products p %s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
-		productColumns, where, sortCol, direction, len(args)+1, len(args)+2,
+			FROM products p %s ORDER BY p.created_at DESC, p.id DESC LIMIT $%d`,
+		productColumns, where, len(args),
 	)
-	args = append(args, q.Limit, q.Offset())
 
 	rows, err := r.pool.Query(ctx, sqlText, args...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("[ERROR] can't get rows from products: %w", err)
+		return nil, fmt.Errorf("[ERROR] can't get rows from products: %w", err)
 	}
 	defer rows.Close()
 
@@ -160,16 +142,16 @@ func (r *productPostgresRepository) FindAll(ctx context.Context, q model.ListQue
 	for rows.Next() {
 		p, err := scanProductBasePrice(rows)
 		if err != nil {
-			return nil, 0, fmt.Errorf("[ERROR] can't scan row from products: %w", err)
+			return nil, fmt.Errorf("[ERROR] can't scan row from products: %w", err)
 		}
 		result = append(result, p)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, 0, fmt.Errorf("[ERROR] error query from products: %w", err)
+		return nil, fmt.Errorf("[ERROR] error query from products: %w", err)
 	}
 
-	return result, total, nil
+	return result, nil
 }
 
 func (r *productPostgresRepository) FindByStoreID(ctx context.Context, storeID int) ([]ProductBasePrice, error) {
@@ -334,7 +316,7 @@ func (r *productPostgresRepository) DecreaseStock(ctx context.Context, id int, q
 // HELPER FUNCTIONS
 // =========================================================
 
-func buildFilterProduct(q model.ListQuery) (string, []any) {
+func buildFilterProduct(q model.CursorQuery) (string, []any) {
 	where := " WHERE p.status = $1 "
 	args := []any{model.ProductStatActive}
 
@@ -387,6 +369,11 @@ func buildFilterProduct(q model.ListQuery) (string, []any) {
 			) <= $%d`, len(args)+1)
 			args = append(args, *filter.MaxRating)
 		}
+	}
+
+	if q.After != nil {
+		args = append(args, q.After.CreatedAt, q.After.ID)
+		where += fmt.Sprintf(" AND (p.created_at, p.id) < ($%d, $%d)", len(args)-1, len(args))
 	}
 
 	return where, args

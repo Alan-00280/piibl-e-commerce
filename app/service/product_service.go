@@ -48,18 +48,24 @@ func (s *ProductService) ListAll(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqContext(c)
 	defer cancel()
 
-	q := helper.ParseListQuery(c)
-	products, total, err := s.repo.FindAll(ctx, q)
+	q := helper.ParseCursorQuery(c)
+	products, err := s.repo.FindAll(ctx, q)
 	if err != nil {
 		return helper.Internal(err)
 	}
 
-	return helper.OkList(c, "berhasil mendapatkan semua produk", products, &model.Meta{
-		Page:       q.Page,
-		Limit:      q.Limit,
-		TotalPages: CountTotalPages(total, q.Limit),
-		Total:      total,
-	})
+	hasMore := len(products) > q.Limit
+	if hasMore {
+		products = products[:q.Limit]
+	}
+
+	meta := &model.CursorMeta{Limit: q.Limit, HasMore: hasMore}
+	if hasMore && len(products) > 0 {
+		last := products[len(products)-1]
+		meta.NextCursor = helper.EncodeCursor(last.Product.CreatedAt, last.Product.ID)
+	}
+
+	return helper.SuccessCursor(c, "berhasil mendapatkan semua produk", products, meta)
 }
 
 // GET /products/:id

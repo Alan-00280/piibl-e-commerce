@@ -10,6 +10,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/helmet"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 )
@@ -86,5 +87,20 @@ func corsPolicy(allowedOrigin string) fiber.Handler {
 		AllowOrigins: allowedOrigin,
 		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 		AllowHeaders: "Origin,Content-Type,Accept,Authorization",
+	})
+}
+
+// Middleware untuk melindungi endpoint yang rentan
+// digunakan: Checkout
+func GeneralRateLimiter() fiber.Handler {
+	return limiter.New(limiter.Config{
+		Max:        3,
+		Expiration: 30 * time.Second,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			return c.IP()
+		},
+		LimitReached: func(c *fiber.Ctx) error {
+			return helper.TooManyRequest("terlalu banyak percobaan")
+		},
 	})
 }
