@@ -14,6 +14,7 @@ import (
 type OrderRepository interface {
 	FindAll(ctx context.Context, q model.ListQuery, currentUser model.AuthUser) ([]model.Order, int, error)
 	FindByID(ctx context.Context, id int, currentUser model.AuthUser) (model.Order, error)
+	FindItemsByOrderID(ctx context.Context, orderID int) ([]model.OrderItem, error)
 	UpdateTenantOrderStatus(ctx context.Context, id int, tenantID int, status model.OrderStat) (model.Order, error)
 	FindCheckoutProducts(ctx context.Context, productIDs []int) (map[int]model.CheckoutProduct, error)
 	FindCheckoutVariantSpaces(ctx context.Context, productIDs []int) (map[int]model.ProductVariantSpaces, error)
@@ -136,19 +137,30 @@ func (r *orderPostgresRepository) FindByID(
 		return model.Order{}, fmt.Errorf("find order by id: %w", err)
 	}
 
+	order.OrderItems, err = r.FindItemsByOrderID(ctx, order.ID)
+	if err != nil {
+		return model.Order{}, err
+	}
+	return order, nil
+}
+
+func (r *orderPostgresRepository) FindItemsByOrderID(
+	ctx context.Context,
+	orderID int,
+) ([]model.OrderItem, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT id, order_id, product_id, product_name, variant, price, quantity, subtotal
 		 FROM order_items
 		 WHERE order_id = $1
 		 ORDER BY id`,
-		order.ID,
+		orderID,
 	)
 	if err != nil {
-		return model.Order{}, fmt.Errorf("query order items: %w", err)
+		return nil, fmt.Errorf("query order items for order %d: %w", orderID, err)
 	}
 	defer rows.Close()
 
-	order.OrderItems = make([]model.OrderItem, 0)
+	items := make([]model.OrderItem, 0)
 	for rows.Next() {
 		var item model.OrderItem
 		if err := rows.Scan(
@@ -161,15 +173,14 @@ func (r *orderPostgresRepository) FindByID(
 			&item.Quantity,
 			&item.Subtotal,
 		); err != nil {
-			return model.Order{}, fmt.Errorf("scan order item: %w", err)
+			return nil, fmt.Errorf("scan order item for order %d: %w", orderID, err)
 		}
-		order.OrderItems = append(order.OrderItems, item)
+		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
-		return model.Order{}, fmt.Errorf("read order items: %w", err)
+		return nil, fmt.Errorf("read order items for order %d: %w", orderID, err)
 	}
-
-	return order, nil
+	return items, nil
 }
 
 func (r *orderPostgresRepository) UpdateTenantOrderStatus(

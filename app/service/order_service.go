@@ -232,9 +232,15 @@ func checkoutRequestIDs(items []model.CheckoutItem) ([]int, []int) {
 // GET /orders
 // roles: all except guest (or in other words, any authenticated user)
 // Customers see only their orders; tenants see orders for their stores.
+// supported return: application/json and text/csv
 func (s *OrderService) ListAll(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqContext(c)
 	defer cancel()
+
+	format, err := helper.Negotiate(c, helper.FormatJSON, helper.FormatCSV)
+	if err != nil {
+		return err
+	}
 
 	currentUser, err := checkGetCurrentUser(c)
 	if err != nil {
@@ -245,6 +251,17 @@ func (s *OrderService) ListAll(c *fiber.Ctx) error {
 	orders, total, err := s.repo.FindAll(ctx, query, currentUser)
 	if err != nil {
 		return helper.Internal(err)
+	}
+	for index := range orders {
+		orderItems, err := s.repo.FindItemsByOrderID(ctx, orders[index].ID)
+		if err != nil {
+			return helper.Internal(err)
+		}
+		orders[index].OrderItems = orderItems
+	}
+
+	if format == helper.FormatCSV {
+		return helper.WriteOrdersCSV(c, orders)
 	}
 
 	return helper.OkList(c, "berhasil mendapatkan daftar order", orders, &model.Meta{
